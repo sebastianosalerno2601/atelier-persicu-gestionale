@@ -1,0 +1,425 @@
+.product-expenses-container {
+  animation: fadeIn 0.5s ease-out;
+  padding: 2rem;
+}
+
+.product-expenses-header {
+  margin-bottom: 2rem;
+}
+
+.month-selector-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+}
+
+.month-nav-button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 1.5rem;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.month-nav-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.month-nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.month-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.product-expenses-content {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 2rem;
+}
+
+.product-expenses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.product-expense-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  gap: 1.5rem;
+}
+
+.product-expense-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateX(5px);
+}
+
+.product-expense-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.product-expense-label {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.product-expense-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.product-expense-total {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toggle-details-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-details-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.toggle-details-btn span:first-child {
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
+}
+
+.toggle-details-btn:hover span:first-child {
+  transform: scale(1.2);
+}
+
+.total-label-small {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.total-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.product-expense-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.price-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+.price-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.remove-price-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  line-height: 1;
+}
+
+.remove-price-btn:hover {
+  background: rgba(255, 0, 0, 0.2);
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.product-expense-input-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.product-expense-input {
+  padding: 0.875rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 500;
+  width: 180px;
+  min-width: 180px;
+  text-align: right;
+  transition: all 0.3s ease;
+}
+
+.product-expense-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.product-expense-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.product-expense-currency {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.product-expenses-total {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.product-expenses-total::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: shimmer 10s linear infinite;
+}
+
+.total-label {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 1rem;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+.total-amount {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #ffffff;
+  position: relative;
+  z-index: 1;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@media (max-width: 768px) {
+  .product-expenses-container {
+    padding: 1rem;
+  }
+
+  .month-selector-section {
+    padding: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+    position: relative;
+  }
+
+  .month-title {
+    font-size: 1.25rem;
+    width: 100%;
+    text-align: center;
+    order: 1;
+    margin-top: 0.5rem;
+  }
+
+  .month-nav-button {
+    position: absolute;
+    top: 1rem;
+    width: 35px;
+    height: 35px;
+    font-size: 1.2rem;
+    order: 2;
+  }
+
+  .month-nav-button:first-of-type {
+    left: 1rem;
+  }
+
+  .month-nav-button:last-of-type {
+    right: 1rem;
+  }
+
+  .product-expenses-content {
+    padding: 1.5rem;
+  }
+
+  .product-expense-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .product-expense-left {
+    width: 100%;
+  }
+
+  .product-expense-label {
+    text-align: center;
+    width: 100%;
+  }
+
+  .product-expense-total-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .product-expense-total {
+    justify-content: center;
+  }
+
+  .toggle-details-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .product-expense-input-container {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .product-expense-input {
+    width: 100%;
+  }
+
+  .total-amount {
+    font-size: 2.5rem;
+  }
+
+  .product-expense-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .product-expense-buttons .toggle-details-btn {
+    width: 100%;
+  }
+}
+
+.product-expense-general {
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.product-expense-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.product-expense-notes {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.notes-textarea {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: all 0.3s ease;
+}
+
+.notes-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.notes-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+

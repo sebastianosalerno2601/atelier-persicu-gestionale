@@ -1,0 +1,254 @@
+.utilities-container {
+  animation: fadeIn 0.5s ease-out;
+  padding: 2rem;
+}
+
+.utilities-header {
+  margin-bottom: 2rem;
+}
+
+.month-selector-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+}
+
+.month-nav-button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 1.5rem;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.month-nav-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.month-nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.month-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.utilities-content {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 2rem;
+}
+
+.utilities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.utility-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.utility-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateX(5px);
+}
+
+.utility-label {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ffffff;
+  flex: 1;
+}
+
+.utility-input-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.utility-input {
+  padding: 0.875rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 500;
+  width: 150px;
+  text-align: right;
+  transition: all 0.3s ease;
+}
+
+.utility-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+}
+
+.utility-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Rimuove le frecce dagli input numerici */
+.utility-input::-webkit-inner-spin-button,
+.utility-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.utility-input {
+  -moz-appearance: textfield;
+}
+
+.utility-currency {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.utilities-total {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.utilities-total::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: shimmer 10s linear infinite;
+}
+
+.total-label {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 1rem;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+.total-amount {
+  font-size: 3rem;
+  font-weight: 700;
+  color: #ffffff;
+  position: relative;
+  z-index: 1;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@media (max-width: 768px) {
+  .utilities-container {
+    padding: 1rem;
+  }
+
+  .month-selector-section {
+    padding: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+    position: relative;
+  }
+
+  .month-title {
+    font-size: 1.25rem;
+    width: 100%;
+    text-align: center;
+    order: 1;
+    margin-top: 0.5rem;
+  }
+
+  .month-nav-button {
+    position: absolute;
+    top: 1rem;
+    width: 35px;
+    height: 35px;
+    font-size: 1.2rem;
+    order: 2;
+  }
+
+  .month-nav-button:first-of-type {
+    left: 1rem;
+  }
+
+  .month-nav-button:last-of-type {
+    right: 1rem;
+  }
+
+  .utilities-content {
+    padding: 1.5rem;
+  }
+
+  .utility-item {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .utility-label {
+    text-align: center;
+    width: 100%;
+  }
+
+  .utility-input-container {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .utility-input {
+    width: 100%;
+  }
+
+  .total-amount {
+    font-size: 2.5rem;
+  }
+}
+

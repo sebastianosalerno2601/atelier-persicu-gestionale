@@ -1,0 +1,362 @@
+.all-calendar-container {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.all-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.calendar-table-container {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+}
+
+.calendar-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.calendar-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.calendar-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #ffffff;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.calendar-table th:last-child {
+  border-right: none;
+}
+
+.time-column {
+  min-width: 100px;
+  width: 100px;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.employee-column {
+  min-width: 250px;
+  text-align: center !important;
+}
+
+.calendar-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease;
+}
+
+.calendar-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.calendar-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.time-cell {
+  padding: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.1rem;
+  background: rgba(0, 0, 0, 0.3);
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  min-width: 100px;
+}
+
+.appointment-cell {
+  padding: 0.5rem;
+  vertical-align: top;
+  min-height: 80px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.appointment-cell:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.appointment-cell.drag-over {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px dashed rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.2);
+  animation: dragOverPulse 1s ease-in-out infinite;
+}
+
+@keyframes dragOverPulse {
+  0%, 100% {
+    border-color: rgba(255, 255, 255, 0.6);
+  }
+  50% {
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.3);
+  }
+}
+
+.appointments-in-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 60px;
+}
+
+.calendar-appointment {
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  cursor: move;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-appointment::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.calendar-appointment:hover::before {
+  left: 100%;
+}
+
+.calendar-appointment:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.calendar-appointment:active {
+  cursor: grabbing;
+  opacity: 0.7;
+}
+
+.calendar-appointment.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  cursor: grabbing !important;
+  z-index: 1000;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.calendar-appointment-name {
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.calendar-appointment-service {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.25rem;
+}
+
+.calendar-appointment-time {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.25rem;
+}
+
+.calendar-appointment-payment {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+.calendar-appointment-payment.carta,
+.calendar-appointment-payment.contanti {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.calendar-appointment-payment.scontistica {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.calendar-appointment-payment.da-pagare {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.empty-cell-hint {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.8rem;
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.add-appointment-in-cell-btn {
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 100%;
+  text-align: center;
+  margin-top: 0.25rem;
+}
+
+.add-appointment-in-cell-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+@media (max-width: 1200px) {
+  .calendar-table-container {
+    overflow-x: auto;
+  }
+
+  .employee-column {
+    min-width: 200px;
+    text-align: center !important;
+  }
+
+  .calendar-appointment {
+    padding: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .calendar-appointment-name {
+    font-size: 0.85rem;
+  }
+
+  .calendar-appointment-service,
+  .calendar-appointment-time {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .all-calendar-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .calendar-table {
+    font-size: 0.85rem;
+    min-width: 380px;
+  }
+
+  .time-cell,
+  .appointment-cell {
+    padding: 0.5rem 0.1rem;
+  }
+
+  .time-column {
+    min-width: 40px;
+    width: 40px;
+  }
+
+  .time-cell {
+    min-width: 40px;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.05rem;
+  }
+
+  .calendar-table th {
+    padding: 0.7rem 0.1rem;
+    font-size: 0.7rem;
+  }
+
+  .employee-column {
+    min-width: 70px;
+    max-width: 70px;
+    text-align: center !important;
+  }
+
+  .calendar-appointment {
+    padding: 0.35rem 0.25rem;
+  }
+
+  .calendar-appointment-name {
+    font-size: 0.65rem;
+    margin-bottom: 0.1rem;
+    line-height: 1.2;
+  }
+
+  .calendar-appointment-service,
+  .calendar-appointment-time {
+    font-size: 0.5rem;
+    margin-bottom: 0.1rem;
+    line-height: 1.2;
+  }
+
+  .calendar-appointment-payment {
+    font-size: 0.55rem;
+    padding: 0.15rem 0.25rem;
+    margin-top: 0.15rem;
+  }
+
+  .appointment-cell {
+    min-height: 90px;
+  }
+
+  .appointments-in-cell {
+    min-height: 70px;
+    gap: 0.4rem;
+  }
+
+  .add-appointment-in-cell-btn {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    margin-top: 0.2rem;
+  }
+
+  .empty-cell-hint {
+    font-size: 0.65rem;
+    padding: 0.5rem;
+  }
+}
+
