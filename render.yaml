@@ -1,0 +1,23 @@
+services:
+  # Servizio Web (Backend + Frontend)
+  - type: web
+    name: atelier-persicu-web
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build && cd server && npm install
+    startCommand: cd server && node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Le variabili MySQL verranno aggiunte automaticamente quando colleghi il servizio MySQL
+    # Health check endpoint (opzionale)
+    healthCheckPath: /api/auth/check
+
+  # Servizio MySQL Database
+  - type: psmdb  # PostgreSQL/MySQL (Render usa "psmdb" per MySQL)
+    name: atelier-persicu-db
+    plan: free
+    ipAllowList: []  # Permette connessioni solo dal servizio web
+
