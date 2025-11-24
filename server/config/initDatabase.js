@@ -1,7 +1,14 @@
 const pool = require('./database');
 
 const initDatabase = async () => {
-  const client = await pool.connect();
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (error) {
+    console.error('❌ Errore connessione al database:', error.message);
+    console.error('   Verifica che DATABASE_URL nel .env sia corretta');
+    throw error; // Rilancia l'errore per essere gestito da server.js
+  }
   
   try {
     // Crea tipi ENUM se non esistono

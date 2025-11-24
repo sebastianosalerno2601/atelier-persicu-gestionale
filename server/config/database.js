@@ -7,13 +7,21 @@ require('dotenv').config();
 
 let pool;
 
+// Configurazione pool PostgreSQL
+const poolConfig = {
+  max: 5, // Limita connessioni max (Supabase free ha limite)
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+};
+
 // Se Render fornisce DATABASE_URL (formato preferito), usalo direttamente
 if (process.env.DATABASE_URL) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
+    ...poolConfig,
     ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1')
       ? false
-      : { rejectUnauthorized: false } // SSL per connessioni cloud (Render)
+      : { rejectUnauthorized: false } // SSL per connessioni cloud (Render/Supabase)
   });
 } else {
   // Altrimenti usa variabili separate
@@ -23,27 +31,37 @@ if (process.env.DATABASE_URL) {
     password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
     database: process.env.POSTGRES_DATABASE || process.env.DB_NAME || 'atelier_persicu',
     port: process.env.POSTGRES_PORT || process.env.DB_PORT || 5432,
+    ...poolConfig,
     ssl: process.env.POSTGRES_HOST && !process.env.POSTGRES_HOST.includes('localhost')
       ? { rejectUnauthorized: false }
       : false
   });
 }
 
-// Test della connessione
-pool.connect()
-  .then(client => {
-    console.log('✅ Connesso al database PostgreSQL');
-    client.release();
-  })
-  .catch(err => {
-    console.error('❌ Errore connessione database:', err.message);
-    if (err.code === '3D000') {
-      console.error('\n💡 Il database non esiste ancora!');
-    } else if (err.code === '28P01') {
-      console.error('\n💡 Errore credenziali PostgreSQL!');
-      console.error('   Verifica il file .env con le credenziali corrette');
-    }
-  });
+// Gestisci errori di connessione senza crashare l'app
+pool.on('error', (err) => {
+  console.error('❌ Errore pool database:', err.message);
+  // Non fare crashare l'app, solo logga l'errore
+});
+
+// Test della connessione (non bloccante - non fa crashare l'app se fallisce)
+setTimeout(() => {
+  pool.connect()
+    .then(client => {
+      console.log('✅ Connesso al database PostgreSQL');
+      client.release();
+    })
+    .catch(err => {
+      console.error('⚠️  Warning connessione database:', err.message);
+      if (err.code === '3D000') {
+        console.error('\n💡 Il database non esiste ancora!');
+      } else if (err.code === '28P01') {
+        console.error('\n💡 Errore credenziali PostgreSQL!');
+        console.error('   Verifica il file .env con le credenziali corrette');
+      }
+      // Non lanciare l'errore, lascia che l'app si avvii comunque
+    });
+}, 1000); // Aspetta 1 secondo prima di testare la connessione
 
 // Wrapper per compatibilità con mysql2-style query
 const originalQuery = pool.query.bind(pool);

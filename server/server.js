@@ -27,6 +27,8 @@ initDatabase()
   })
   .catch((err) => {
     console.error('❌ Errore inizializzazione database:', err);
+    console.error('Stack trace:', err.stack);
+    // Non fare crashare l'app, continua comunque (il server si avvierà)
   });
 
 // Routes API
