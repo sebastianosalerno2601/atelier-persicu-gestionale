@@ -77,7 +77,8 @@ router.post('/notes/:monthKey', authMiddleware, async (req, res) => {
     
     await pool.query(
       `INSERT INTO product_expenses_notes (month_key, notes) VALUES (?, ?) 
-       ON DUPLICATE KEY UPDATE notes = VALUES(notes)`,
+       ON CONFLICT (month_key) DO UPDATE 
+       SET notes = EXCLUDED.notes`,
       [monthKey, notes || '']
     );
     

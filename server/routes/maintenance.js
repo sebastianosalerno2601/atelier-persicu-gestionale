@@ -36,7 +36,8 @@ router.post('/:monthKey', authMiddleware, async (req, res) => {
     
     await pool.query(
       `INSERT INTO maintenance (month_key, type, price, notes) VALUES (?, ?, ?, ?) 
-       ON DUPLICATE KEY UPDATE price = VALUES(price), notes = VALUES(notes)`,
+       ON CONFLICT (month_key, type) DO UPDATE 
+       SET price = EXCLUDED.price, notes = EXCLUDED.notes`,
       [monthKey, type, price || 0, notes || '']
     );
     

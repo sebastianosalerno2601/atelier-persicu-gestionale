@@ -36,12 +36,12 @@ router.post('/:monthKey', authMiddleware, async (req, res) => {
     await pool.query(
       `INSERT INTO utilities (month_key, pigione, acqua, luce, spazzatura, gas) 
        VALUES (?, ?, ?, ?, ?, ?) 
-       ON DUPLICATE KEY UPDATE 
-       pigione = VALUES(pigione), 
-       acqua = VALUES(acqua), 
-       luce = VALUES(luce), 
-       spazzatura = VALUES(spazzatura), 
-       gas = VALUES(gas)`,
+       ON CONFLICT (month_key) DO UPDATE 
+       SET pigione = EXCLUDED.pigione, 
+           acqua = EXCLUDED.acqua, 
+           luce = EXCLUDED.luce, 
+           spazzatura = EXCLUDED.spazzatura, 
+           gas = EXCLUDED.gas`,
       [monthKey, pigione || 0, acqua || 0, luce || 0, spazzatura || 0, gas || 0]
     );
     
