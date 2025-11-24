@@ -40,7 +40,14 @@ if (process.env.DATABASE_URL) {
 
 // Gestisci errori di connessione senza crashare l'app
 pool.on('error', (err) => {
-  console.error('❌ Errore pool database:', err.message);
+  const errorMsg = err.message || err.toString() || '';
+  // Ignora errori di terminazione normale del database (Supabase chiude connessioni inattive)
+  if (errorMsg.includes('shutdown') || errorMsg.includes('termination') || errorMsg.includes('db_termination')) {
+    // Non loggare - è normale che Supabase chiuda connessioni inattive
+    return;
+  }
+  // Logga solo errori veri e critici
+  console.error('❌ Errore pool database:', errorMsg);
   // Non fare crashare l'app, solo logga l'errore
 });
 
