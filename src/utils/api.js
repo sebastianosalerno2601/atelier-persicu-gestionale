@@ -1,5 +1,8 @@
 // Configurazione API
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// In produzione, frontend e backend sono sulla stessa URL, quindi usa URL relativo
+// In sviluppo, usa localhost
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:5000/api');
 
 // Funzione helper per le chiamate API
 const apiCall = async (endpoint, options = {}) => {
