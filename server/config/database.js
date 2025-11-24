@@ -9,7 +9,7 @@ let pool;
 
 // Configurazione pool PostgreSQL
 const poolConfig = {
-  max: 5, // Limita connessioni max (Supabase free ha limite)
+  max: 12, // Supporta fino a 6+ utenti simultanei (2 connessioni per utente)
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 };
