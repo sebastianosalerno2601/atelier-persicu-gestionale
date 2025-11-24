@@ -67,19 +67,20 @@ router.post('/', authMiddleware, async (req, res) => {
     console.log('📝 Data normalizzata per MySQL:', normalizedDate);
     
     const [result] = await pool.query(
-      'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
       [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod || 'da-pagare']
     );
     
-    console.log('✅ Appuntamento creato con ID:', result.insertId);
+    const newId = result[0]?.id;
+    console.log('✅ Appuntamento creato con ID:', newId);
     
     // Recupera l'appuntamento appena creato per verificare
-    const [created] = await pool.query('SELECT * FROM appointments WHERE id = ?', [result.insertId]);
+    const [created] = await pool.query('SELECT * FROM appointments WHERE id = ?', [newId]);
     console.log('✅ Appuntamento salvato nel DB:', created[0]);
     console.log('✅ Data salvata nel DB (raw):', created[0]?.date);
     console.log('✅ Data salvata nel DB (tipo):', typeof created[0]?.date);
     
-    res.json({ id: result.insertId, ...req.body });
+    res.json({ id: newId, ...req.body });
   } catch (error) {
     console.error('❌ Errore creazione appuntamento:', error);
     res.status(500).json({ error: 'Errore interno del server' });

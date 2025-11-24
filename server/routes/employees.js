@@ -26,11 +26,11 @@ router.post('/', authMiddleware, async (req, res) => {
     const { fullName, email, fiscalCode, birthYear, monthlySalary, color, createCredentials, credentials } = req.body;
     
     const [result] = await pool.query(
-      'INSERT INTO employees (full_name, email, fiscal_code, birth_year, monthly_salary, color) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO employees (full_name, email, fiscal_code, birth_year, monthly_salary, color) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
       [fullName, email, fiscalCode, birthYear, monthlySalary, color || '#ffffff']
     );
     
-    const employeeId = result.insertId;
+    const employeeId = result[0]?.id;
     
     // Crea credenziali se richiesto
     if (createCredentials && credentials) {

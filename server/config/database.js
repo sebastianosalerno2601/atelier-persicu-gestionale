@@ -1,67 +1,66 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 require('dotenv').config();
 
-// Supporta variabili ambiente di Railway, Render e configurazione personalizzata
-// Railway: MYSQLHOST, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE, MYSQLPORT
-// Render (PostgreSQL/MySQL): DATABASE_URL o variabili separate
-// Render può anche usare DATABASE_URL con formato: mysql://user:pass@host:port/database
-// o postgresql://user:pass@host:port/database
+// Supporta variabili ambiente di Render e configurazione personalizzata
+// Render fornisce DATABASE_URL per PostgreSQL: postgresql://user:pass@host:port/database
+// Oppure variabili separate: POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DATABASE, POSTGRES_PORT
 
-// Parsing di DATABASE_URL se presente (Render spesso lo fornisce)
-let dbConfig = {
-  host: process.env.MYSQLHOST || process.env.POSTGRES_HOST || process.env.DB_HOST || 'localhost',
-  user: process.env.MYSQLUSER || process.env.POSTGRES_USER || process.env.DB_USER || 'root',
-  password: process.env.MYSQLPASSWORD || process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
-  database: process.env.MYSQLDATABASE || process.env.POSTGRES_DATABASE || process.env.DB_NAME || 'atelier_persicu',
-  port: process.env.MYSQLPORT || process.env.POSTGRES_PORT || process.env.DB_PORT || 3306,
-};
+let pool;
 
-// Se Render fornisce DATABASE_URL (o PlanetScale), parsalo
+// Se Render fornisce DATABASE_URL (formato preferito), usalo direttamente
 if (process.env.DATABASE_URL) {
-  const url = new URL(process.env.DATABASE_URL);
-  dbConfig.host = url.hostname;
-  dbConfig.user = url.username;
-  dbConfig.password = url.password;
-  dbConfig.database = url.pathname.slice(1); // Rimuove lo slash iniziale
-  dbConfig.port = parseInt(url.port) || 3306;
-  
-  // PlanetScale e altri servizi richiedono SSL
-  // Controlla se la connection string ha parametri SSL
-  if (url.searchParams.get('sslaccept') || url.protocol === 'mysql:') {
-    dbConfig.ssl = {
-      rejectUnauthorized: false // Per servizi cloud gestiti
-    };
-  }
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1')
+      ? false
+      : { rejectUnauthorized: false } // SSL per connessioni cloud (Render)
+  });
+} else {
+  // Altrimenti usa variabili separate
+  pool = new Pool({
+    host: process.env.POSTGRES_HOST || process.env.DB_HOST || 'localhost',
+    user: process.env.POSTGRES_USER || process.env.DB_USER || 'postgres',
+    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
+    database: process.env.POSTGRES_DATABASE || process.env.DB_NAME || 'atelier_persicu',
+    port: process.env.POSTGRES_PORT || process.env.DB_PORT || 5432,
+    ssl: process.env.POSTGRES_HOST && !process.env.POSTGRES_HOST.includes('localhost')
+      ? { rejectUnauthorized: false }
+      : false
+  });
 }
 
-const pool = mysql.createPool({
-  ...dbConfig,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  // Configurazione per evitare problemi di timezone con le date
-  timezone: 'local',
-  dateStrings: true, // Forza MySQL a restituire le date come stringhe invece di oggetti Date
-  // Supporto SSL per database esterni (PlanetScale, etc.)
-  ssl: dbConfig.ssl || false
-});
-
 // Test della connessione
-pool.getConnection()
-  .then(connection => {
-    console.log('✅ Connesso al database MySQL');
-    connection.release();
+pool.connect()
+  .then(client => {
+    console.log('✅ Connesso al database PostgreSQL');
+    client.release();
   })
   .catch(err => {
     console.error('❌ Errore connessione database:', err.message);
-    if (err.code === 'ER_BAD_DB_ERROR') {
+    if (err.code === '3D000') {
       console.error('\n💡 Il database non esiste ancora!');
-      console.error('   Esegui: node createDatabase.js');
-    } else if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('\n💡 Errore credenziali MySQL!');
+    } else if (err.code === '28P01') {
+      console.error('\n💡 Errore credenziali PostgreSQL!');
       console.error('   Verifica il file .env con le credenziali corrette');
     }
   });
+
+// Wrapper per compatibilità con mysql2-style query
+const originalQuery = pool.query.bind(pool);
+pool.query = async function(text, params) {
+  // Converti ? placeholders a $1, $2, $3 per PostgreSQL
+  let pgText = text;
+  if (params && params.length > 0) {
+    let paramIndex = 1;
+    pgText = text.replace(/\?/g, () => `$${paramIndex++}`);
+  }
+  
+  const result = await originalQuery(pgText, params);
+  
+  // Converte risultato PostgreSQL { rows } a formato mysql2-style [rows]
+  // per compatibilità con le route esistenti
+  return [result.rows];
+};
 
 module.exports = pool;
 
