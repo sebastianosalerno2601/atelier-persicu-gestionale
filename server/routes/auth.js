@@ -43,5 +43,10 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// Health check endpoint (per servizi di ping/keep-alive)
+router.get('/check', (req, res) => {
+  res.json({ status: 'ok', message: 'Server attivo' });
+});
+
 module.exports = router;
 
