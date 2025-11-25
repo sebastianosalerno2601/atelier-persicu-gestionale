@@ -57,9 +57,6 @@ const Login = ({ onLogin }) => {
             {isLoading ? 'Accesso...' : 'Accedi'}
           </button>
         </form>
-        <div className="login-info">
-          <p>Superadmin: admin / admin123</p>
-        </div>
       </div>
     </div>
   );

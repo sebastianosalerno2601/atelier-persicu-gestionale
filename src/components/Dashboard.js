@@ -23,17 +23,32 @@ const Dashboard = ({ onLogout }) => {
     navigate('/login');
   };
 
+  const handleToggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const handleCloseMenu = () => {
+    setIsMenuOpen(false);
+  };
+
+  const handleLogoClick = () => {
+    navigate('/dashboard/appointments');
+    setIsMenuOpen(false);
+  };
+
   return (
     <div className="dashboard-container">
+      {isMenuOpen && <div className="menu-overlay" onClick={handleCloseMenu}></div>}
       <nav className="dashboard-nav">
         <div className="nav-header">
-          <div className="nav-logo-container">
+          <div className="nav-logo-container" onClick={handleLogoClick}>
             <img src="/logo-atelier-persicu.png" alt="Atelier Persicu" className="nav-logo" />
           </div>
           <button 
             className="menu-toggle"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            onClick={handleToggleMenu}
             aria-label="Toggle menu"
+            type="button"
           >
             <span></span>
             <span></span>
@@ -45,7 +60,7 @@ const Dashboard = ({ onLogout }) => {
             <Link 
               to="/dashboard/appointments" 
               className={location.pathname.includes('appointments') && !location.pathname.includes('all-calendar') ? 'active' : ''}
-              onClick={() => setIsMenuOpen(false)}
+              onClick={handleCloseMenu}
             >
               Appuntamenti
             </Link>
@@ -54,7 +69,7 @@ const Dashboard = ({ onLogout }) => {
             <Link 
               to="/dashboard/all-calendar" 
               className={location.pathname.includes('all-calendar') ? 'active' : ''}
-              onClick={() => setIsMenuOpen(false)}
+              onClick={handleCloseMenu}
             >
               All Calendar
             </Link>
@@ -65,7 +80,7 @@ const Dashboard = ({ onLogout }) => {
                 <Link 
                   to="/dashboard/employees" 
                   className={location.pathname.includes('employees') && !location.pathname.includes('report') ? 'active' : ''}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Dipendenti
                 </Link>
@@ -74,7 +89,7 @@ const Dashboard = ({ onLogout }) => {
                 <Link 
                   to="/dashboard/employees-report" 
                   className={location.pathname.includes('employees-report') ? 'active' : ''}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Riepilogo Dipendenti
                 </Link>
@@ -83,7 +98,7 @@ const Dashboard = ({ onLogout }) => {
                 <Link 
                   to="/dashboard/utilities" 
                   className={location.pathname.includes('utilities') ? 'active' : ''}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Utenze
                 </Link>
@@ -92,7 +107,7 @@ const Dashboard = ({ onLogout }) => {
                 <Link 
                   to="/dashboard/product-expenses" 
                   className={location.pathname.includes('product-expenses') ? 'active' : ''}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Spese Prodotti
                 </Link>
@@ -101,7 +116,7 @@ const Dashboard = ({ onLogout }) => {
                 <Link 
                   to="/dashboard/bar-expenses" 
                   className={location.pathname.includes('bar-expenses') ? 'active' : ''}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Spesa Bar
                 </Link>
@@ -110,7 +125,7 @@ const Dashboard = ({ onLogout }) => {
                 <Link 
                   to="/dashboard/maintenance" 
                   className={location.pathname.includes('maintenance') ? 'active' : ''}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={handleCloseMenu}
                 >
                   Manutenzioni
                 </Link>
@@ -122,7 +137,7 @@ const Dashboard = ({ onLogout }) => {
               <Link 
                 to="/dashboard/profile" 
                 className={location.pathname.includes('profile') ? 'active' : ''}
-                onClick={() => setIsMenuOpen(false)}
+                onClick={handleCloseMenu}
               >
                 Il mio profilo
               </Link>

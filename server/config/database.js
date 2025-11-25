@@ -1,11 +1,12 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Supporta variabili ambiente di Render e configurazione personalizzata
-// Render fornisce DATABASE_URL per PostgreSQL: postgresql://user:pass@host:port/database
-// Oppure variabili separate: POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DATABASE, POSTGRES_PORT
+// Configurazione separata per ambiente locale e produzione
+// - LOCALE (sviluppo): usa sempre database PostgreSQL locale, ignora DATABASE_URL
+// - PRODUZIONE (Render): usa DATABASE_URL da Supabase
 
 let pool;
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Configurazione pool PostgreSQL
 const poolConfig = {
@@ -14,27 +15,28 @@ const poolConfig = {
   connectionTimeoutMillis: 2000,
 };
 
-// Se Render fornisce DATABASE_URL (formato preferito), usalo direttamente
-if (process.env.DATABASE_URL) {
+// In PRODUZIONE (Render): usa DATABASE_URL da Supabase
+if (isProduction && process.env.DATABASE_URL) {
+  console.log('🔧 Modalità PRODUZIONE: uso database Supabase');
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ...poolConfig,
     ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1')
       ? false
-      : { rejectUnauthorized: false } // SSL per connessioni cloud (Render/Supabase)
+      : { rejectUnauthorized: false } // SSL per Supabase
   });
 } else {
-  // Altrimenti usa variabili separate
+  // In SVILUPPO LOCALE: usa sempre database PostgreSQL locale
+  // Ignora DATABASE_URL anche se presente
+  console.log('🔧 Modalità SVILUPPO: uso database PostgreSQL locale');
   pool = new Pool({
-    host: process.env.POSTGRES_HOST || process.env.DB_HOST || 'localhost',
-    user: process.env.POSTGRES_USER || process.env.DB_USER || 'postgres',
-    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || '',
-    database: process.env.POSTGRES_DATABASE || process.env.DB_NAME || 'atelier_persicu',
-    port: process.env.POSTGRES_PORT || process.env.DB_PORT || 5432,
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'atelier_persicu_local',
+    port: process.env.DB_PORT || 5432,
     ...poolConfig,
-    ssl: process.env.POSTGRES_HOST && !process.env.POSTGRES_HOST.includes('localhost')
-      ? { rejectUnauthorized: false }
-      : false
+    ssl: false // Nessun SSL per database locale
   });
 }
 
@@ -55,16 +57,25 @@ pool.on('error', (err) => {
 setTimeout(() => {
   pool.connect()
     .then(client => {
-      console.log('✅ Connesso al database PostgreSQL');
+      const dbName = isProduction ? 'Supabase (Produzione)' : 'PostgreSQL Locale';
+      console.log(`✅ Connesso al database ${dbName}`);
       client.release();
     })
     .catch(err => {
-      console.error('⚠️  Warning connessione database:', err.message);
+      const envType = isProduction ? 'produzione (Render)' : 'sviluppo locale';
+      console.error(`⚠️  Warning connessione database (${envType}):`, err.message);
       if (err.code === '3D000') {
         console.error('\n💡 Il database non esiste ancora!');
+        if (!isProduction) {
+          console.error('   Crea il database con: createdb atelier_persicu_local');
+          console.error('   Oppure modifica DB_NAME nel file server/.env');
+        }
       } else if (err.code === '28P01') {
         console.error('\n💡 Errore credenziali PostgreSQL!');
-        console.error('   Verifica il file .env con le credenziali corrette');
+        console.error('   Verifica il file server/.env con le credenziali corrette');
+      } else if (err.code === 'ECONNREFUSED') {
+        console.error('\n💡 PostgreSQL non è in esecuzione!');
+        console.error('   Avvia PostgreSQL sul tuo computer');
       }
       // Non lanciare l'errore, lascia che l'app si avvii comunque
     });

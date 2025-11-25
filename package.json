@@ -16,6 +16,7 @@
     "build:all": "npm install && npm run build && cd server && npm install",
     "install:all": "npm install && cd server && npm install",
     "postinstall": "npm run build && cd server && npm install",
+    "favicons": "node scripts/generate-favicons.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -39,11 +40,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5"
   }
 }
-
-
-
-
-
-

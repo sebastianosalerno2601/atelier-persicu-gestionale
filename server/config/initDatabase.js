@@ -6,7 +6,13 @@ const initDatabase = async () => {
     client = await pool.connect();
   } catch (error) {
     console.error('❌ Errore connessione al database:', error.message);
-    console.error('   Verifica che DATABASE_URL nel .env sia corretta');
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+      console.error('   Verifica che DATABASE_URL sia configurato correttamente su Render');
+    } else {
+      console.error('   Verifica che PostgreSQL sia installato e in esecuzione');
+      console.error('   Verifica le credenziali nel file server/.env (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)');
+    }
     throw error; // Rilancia l'errore per essere gestito da server.js
   }
   
@@ -210,16 +216,30 @@ const initDatabase = async () => {
         EXECUTE FUNCTION update_updated_at_column();
     `);
     
-    // Inizializza superadmin se non esiste
-    const result = await client.query('SELECT * FROM users WHERE username = $1', ['admin']);
+    // Inizializza superadmin con le nuove credenziali
+    const bcrypt = require('bcryptjs');
+    
+    // Elimina il vecchio utente admin se esiste
+    await client.query('DELETE FROM users WHERE username = $1', ['admin']);
+    
+    // Verifica se esiste già AntonioPersico
+    const result = await client.query('SELECT * FROM users WHERE username = $1', ['AntonioPersico']);
+    const hashedPassword = await bcrypt.hash('AntonioPersico1', 10);
+    
     if (result.rows.length === 0) {
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = await bcrypt.hash('admin123', 10);
+      // Crea il nuovo superadmin
       await client.query(
         'INSERT INTO users (username, password, role) VALUES ($1, $2, $3)',
-        ['admin', hashedPassword, 'superadmin']
+        ['AntonioPersico', hashedPassword, 'superadmin']
       );
-      console.log('✅ Superadmin creato (username: admin, password: admin123)');
+      console.log('✅ Superadmin creato (username: AntonioPersico)');
+    } else {
+      // Aggiorna la password e il ruolo se l'utente esiste già
+      await client.query(
+        'UPDATE users SET password = $1, role = $2 WHERE username = $3',
+        [hashedPassword, 'superadmin', 'AntonioPersico']
+      );
+      console.log('✅ Credenziali superadmin aggiornate (username: AntonioPersico)');
     }
     
     console.log('✅ Database inizializzato correttamente');
