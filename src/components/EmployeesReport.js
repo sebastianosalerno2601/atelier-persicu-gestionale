@@ -22,8 +22,11 @@ const EmployeesReport = () => {
   // Prezzi prodotti
   const PRODUCT_PRICES = {
     'Cera 50ml': 5,
-    'Cera 100ml': 8,
-    'Lacca': 10
+    'Cera 100ml': 10,
+    'Lacca': 10,
+    'Crema ricci': 10,
+    'Cera in polvere': 10,
+    'Dopobarba': 10
   };
 
   // Helper per convertire employee da snake_case a camelCase
@@ -168,7 +171,10 @@ const EmployeesReport = () => {
     const productsMap = {
       'Cera 50ml': { count: 0, total: 0 },
       'Cera 100ml': { count: 0, total: 0 },
-      'Lacca': { count: 0, total: 0 }
+      'Lacca': { count: 0, total: 0 },
+      'Crema ricci': { count: 0, total: 0 },
+      'Cera in polvere': { count: 0, total: 0 },
+      'Dopobarba': { count: 0, total: 0 }
     };
 
     productsWithSold.forEach(apt => {

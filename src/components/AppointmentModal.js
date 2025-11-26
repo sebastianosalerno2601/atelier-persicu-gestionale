@@ -172,9 +172,12 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
                 required={hasProductSold}
               >
                 <option value="">Seleziona un prodotto</option>
-                <option value="Cera 50ml">Cera 50ml</option>
-                <option value="Cera 100ml">Cera 100ml</option>
-                <option value="Lacca">Lacca</option>
+                <option value="Cera 50ml">Cera 50ml (5€)</option>
+                <option value="Cera 100ml">Cera 100ml (10€)</option>
+                <option value="Lacca">Lacca (10€)</option>
+                <option value="Crema ricci">Crema ricci (10€)</option>
+                <option value="Cera in polvere">Cera in polvere (10€)</option>
+                <option value="Dopobarba">Dopobarba (10€)</option>
               </select>
             </div>
           )}
