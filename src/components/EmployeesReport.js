@@ -154,6 +154,11 @@ const EmployeesReport = () => {
   }, [selectedEmployee, currentMonth, dateRange, appointments]);
 
   useEffect(() => {
+    // Reset dei dati quando cambia dipendente
+    setMonthlyEarnings(0);
+    setDailyBreakdown([]);
+    
+    // Ricalcola i guadagni per il nuovo dipendente
     if (selectedEmployee && appointments.length > 0) {
       calculateMonthlyEarnings();
     }
@@ -246,7 +251,12 @@ const EmployeesReport = () => {
     });
   };
 
-  const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployee);
+  // Normalizza il confronto degli ID (gestisce sia numeri che stringhe)
+  const selectedEmployeeData = employees.find(emp => {
+    const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id;
+    const selId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee) : selectedEmployee;
+    return empId === selId;
+  });
 
   if (employees.length === 0) {
     return (
@@ -271,8 +281,13 @@ const EmployeesReport = () => {
         <select
           id="employee-select"
           className="employee-select"
-          value={selectedEmployee || ''}
-          onChange={(e) => setSelectedEmployee(e.target.value)}
+          value={selectedEmployee ? String(selectedEmployee) : ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            // Converti a numero se possibile, altrimenti mantieni come stringa
+            const normalizedValue = value && !isNaN(value) ? parseInt(value) : value;
+            setSelectedEmployee(normalizedValue);
+          }}
         >
           {employees.map(employee => (
             <option key={employee.id} value={employee.id}>
