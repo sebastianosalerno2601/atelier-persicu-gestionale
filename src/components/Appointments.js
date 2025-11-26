@@ -23,7 +23,8 @@ const appointmentToCamelCase = (obj) => {
     endTime: obj.end_time,
     clientName: obj.client_name,
     serviceType: obj.service_type,
-    paymentMethod: obj.payment_method
+    paymentMethod: obj.payment_method,
+    productSold: obj.product_sold || null
   };
 };
 
@@ -44,7 +45,8 @@ const appointmentToSnakeCase = (obj) => {
     endTime: obj.endTime,
     clientName: obj.clientName,
     serviceType: obj.serviceType,
-    paymentMethod: obj.paymentMethod
+    paymentMethod: obj.paymentMethod,
+    productSold: obj.productSold || null
   };
 };
 
@@ -126,15 +128,34 @@ const Appointments = () => {
   }
 
   const getAppointmentsForDay = () => {
-      const filtered = appointments.filter(apt => {
+    const filtered = appointments.filter(apt => {
       // Normalizza la data per il confronto (rimuove eventuali timestamp)
       const aptDate = apt.date ? apt.date.split('T')[0] : apt.date;
       // Converti employeeId a numero per il confronto
       const aptEmployeeId = typeof apt.employeeId === 'string' ? parseInt(apt.employeeId) : apt.employeeId;
       const selectedEmpId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee) : selectedEmployee;
       
-      return aptDate === selectedDate && aptEmployeeId === selectedEmpId;
+      const dateMatch = aptDate === selectedDate;
+      const employeeMatch = aptEmployeeId === selectedEmpId;
+      
+      // Debug log per capire perché non vengono mostrati
+      if (!dateMatch || !employeeMatch) {
+        console.log('Appuntamento filtrato:', {
+          aptId: apt.id,
+          aptDate,
+          selectedDate,
+          dateMatch,
+          aptEmployeeId,
+          selectedEmpId,
+          employeeMatch
+        });
+      }
+      
+      return dateMatch && employeeMatch;
     });
+    
+    console.log(`Appuntamenti per il giorno ${selectedDate} e dipendente ${selectedEmployee}:`, filtered.length, filtered);
+    
     return filtered;
   };
 
@@ -408,9 +429,9 @@ const Appointments = () => {
               {timeSlots.map(timeSlot => {
                 const appointmentsForSlot = getAppointmentsForTimeSlot(timeSlot);
                 
-                // Debug per il primo slot con appuntamenti
-                if (appointmentsForSlot.length > 0 && timeSlot === timeSlots[0]) {
-                  console.log(`Primo slot (${timeSlot}) ha ${appointmentsForSlot.length} appuntamenti:`, appointmentsForSlot);
+                // Debug sempre attivo per capire il problema
+                if (appointmentsForSlot.length > 0) {
+                  console.log(`✅ Slot ${timeSlot} - Trovati ${appointmentsForSlot.length} appuntamenti:`, appointmentsForSlot);
                 }
                 
                 return (

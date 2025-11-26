@@ -108,10 +108,24 @@ const initDatabase = async () => {
         client_name VARCHAR(255) NOT NULL,
         service_type VARCHAR(100) NOT NULL,
         payment_method payment_method_type NOT NULL DEFAULT 'da-pagare',
+        product_sold VARCHAR(50) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
       )
+    `);
+    
+    // Aggiungi colonna product_sold se non esiste (per migrazione database esistenti)
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'appointments' AND column_name = 'product_sold'
+        ) THEN
+          ALTER TABLE appointments ADD COLUMN product_sold VARCHAR(50) NULL;
+        END IF;
+      END $$;
     `);
     
     await client.query(`

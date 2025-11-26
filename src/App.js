@@ -11,6 +11,7 @@ import Utilities from './components/Utilities';
 import ProductExpenses from './components/ProductExpenses';
 import BarExpenses from './components/BarExpenses';
 import Maintenance from './components/Maintenance';
+import TotalExpenses from './components/TotalExpenses';
 import './App.css';
 
 function App() {
@@ -76,6 +77,7 @@ function App() {
           <Route path="product-expenses" element={<ProductExpenses />} />
           <Route path="bar-expenses" element={<BarExpenses />} />
           <Route path="maintenance" element={<Maintenance />} />
+          <Route path="total-expenses" element={<TotalExpenses />} />
         </Route>
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>

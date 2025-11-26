@@ -130,6 +130,15 @@ const Dashboard = ({ onLogout }) => {
                   Manutenzioni
                 </Link>
               </li>
+              <li>
+                <Link 
+                  to="/dashboard/total-expenses" 
+                  className={location.pathname.includes('total-expenses') ? 'active' : ''}
+                  onClick={handleCloseMenu}
+                >
+                  Totale Spese
+                </Link>
+              </li>
             </>
           )}
           {!isSuperAdmin && (

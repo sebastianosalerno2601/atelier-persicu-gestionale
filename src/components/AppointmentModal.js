@@ -11,6 +11,8 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
   const [endTime, setEndTime] = useState(appointment?.endTime || '');
   const [paymentMethod, setPaymentMethod] = useState(appointment?.paymentMethod || 'da-pagare');
   const [isRecurring, setIsRecurring] = useState(false);
+  const [hasProductSold, setHasProductSold] = useState(!!appointment?.productSold);
+  const [productSold, setProductSold] = useState(appointment?.productSold || '');
 
   useEffect(() => {
     // Calcola automaticamente l'ora di fine in base al tipo di servizio
@@ -44,7 +46,8 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
       startTime,
       endTime,
       paymentMethod,
-      isRecurring: isRecurring && !isEditing
+      isRecurring: isRecurring && !isEditing,
+      productSold: hasProductSold ? productSold : null
     });
   };
 
@@ -142,6 +145,39 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
               <option value="scontistica">Scontistica</option>
             </select>
           </div>
+
+          <div className="form-group checkbox-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={hasProductSold}
+                onChange={(e) => {
+                  setHasProductSold(e.target.checked);
+                  if (!e.target.checked) {
+                    setProductSold('');
+                  }
+                }}
+              />
+              <span>Prodotto venduto</span>
+            </label>
+          </div>
+
+          {hasProductSold && (
+            <div className="form-group">
+              <label htmlFor="productSold">Seleziona prodotto</label>
+              <select
+                id="productSold"
+                value={productSold}
+                onChange={(e) => setProductSold(e.target.value)}
+                required={hasProductSold}
+              >
+                <option value="">Seleziona un prodotto</option>
+                <option value="Cera 50ml">Cera 50ml</option>
+                <option value="Cera 100ml">Cera 100ml</option>
+                <option value="Lacca">Lacca</option>
+              </select>
+            </div>
+          )}
 
           {!isEditing && (
             <div className="form-group checkbox-group">

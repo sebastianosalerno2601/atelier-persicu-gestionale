@@ -15,6 +15,16 @@ const EmployeesReport = () => {
   const [tempEndDate, setTempEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [appointments, setAppointments] = useState([]);
+  const [productsBreakdown, setProductsBreakdown] = useState([]);
+  const [totalProductsCount, setTotalProductsCount] = useState(0);
+  const [showProductsBreakdown, setShowProductsBreakdown] = useState(false);
+
+  // Prezzi prodotti
+  const PRODUCT_PRICES = {
+    'Cera 50ml': 5,
+    'Cera 100ml': 8,
+    'Lacca': 10
+  };
 
   // Helper per convertire employee da snake_case a camelCase
   const employeeToCamelCase = (emp) => {
@@ -35,7 +45,8 @@ const EmployeesReport = () => {
       date: apt.date ? apt.date.split('T')[0] : apt.appointment_date,
       startTime: apt.startTime || apt.start_time,
       serviceType: apt.serviceType || apt.service_type,
-      paymentMethod: apt.paymentMethod || apt.payment_method
+      paymentMethod: apt.paymentMethod || apt.payment_method,
+      productSold: apt.productSold || apt.product_sold || null
     };
   };
 
@@ -151,12 +162,41 @@ const EmployeesReport = () => {
       new Date(b.date) - new Date(a.date)
     );
     setDailyBreakdown(breakdown);
+
+    // Calcola prodotti venduti (solo appuntamenti pagati con prodotto venduto)
+    const productsWithSold = filteredAppointments.filter(apt => apt.productSold);
+    const productsMap = {
+      'Cera 50ml': { count: 0, total: 0 },
+      'Cera 100ml': { count: 0, total: 0 },
+      'Lacca': { count: 0, total: 0 }
+    };
+
+    productsWithSold.forEach(apt => {
+      const product = apt.productSold;
+      if (product && PRODUCT_PRICES[product]) {
+        productsMap[product].count += 1;
+        productsMap[product].total += PRODUCT_PRICES[product];
+      }
+    });
+
+    const breakdownProducts = Object.keys(productsMap).map(product => ({
+      product,
+      count: productsMap[product].count,
+      total: productsMap[product].total,
+      price: PRODUCT_PRICES[product]
+    }));
+
+    setProductsBreakdown(breakdownProducts);
+    setTotalProductsCount(productsWithSold.length);
   }, [selectedEmployee, currentMonth, dateRange, appointments]);
 
   useEffect(() => {
     // Reset dei dati quando cambia dipendente
     setMonthlyEarnings(0);
     setDailyBreakdown([]);
+    setProductsBreakdown([]);
+    setTotalProductsCount(0);
+    setShowProductsBreakdown(false);
     
     // Ricalcola i guadagni per il nuovo dipendente
     if (selectedEmployee && appointments.length > 0) {
@@ -411,6 +451,50 @@ const EmployeesReport = () => {
                 Il 40% del totale degli appuntamenti pagati {dateRange ? 'nel periodo selezionato' : 'del mese'}
               </div>
             </div>
+
+            <div className="products-sold-section">
+              <div className="products-sold-info">
+                <span className="products-sold-label">Prodotti venduti:</span>
+                <span className="products-sold-count">{totalProductsCount}</span>
+              </div>
+              {totalProductsCount > 0 && (
+                <button
+                  className="products-breakdown-button"
+                  onClick={() => setShowProductsBreakdown(!showProductsBreakdown)}
+                >
+                  {showProductsBreakdown ? '▼ Nascondi' : '▶ Mostra'} Riepilogo prodotti
+                </button>
+              )}
+            </div>
+
+            {showProductsBreakdown && totalProductsCount > 0 && (
+              <div className="products-breakdown">
+                <h4 className="breakdown-title">Riepilogo prodotti venduti</h4>
+                <div className="products-breakdown-list">
+                  {productsBreakdown.map((item, index) => (
+                    <div key={index} className="product-breakdown-item">
+                      <div className="product-name">{item.product}</div>
+                      <div className="product-details">
+                        <span className="product-count">
+                          Vendute: {item.count}
+                        </span>
+                        <span className="product-total">
+                          Totale: {item.total.toFixed(2)} €
+                        </span>
+                        <span className="product-price">
+                          ({item.price.toFixed(2)} € cad.)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="products-total-summary">
+                    <strong>
+                      Totale generale: {productsBreakdown.reduce((sum, item) => sum + item.total, 0).toFixed(2)} €
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {dailyBreakdown.length > 0 && (
               <div className="daily-breakdown">

@@ -6,10 +6,12 @@ const authMiddleware = require('../middleware/auth');
 // Ottieni tutti gli appuntamenti
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const [appointments] = await pool.query('SELECT * FROM appointments ORDER BY date, start_time');
+    const result = await pool.query('SELECT * FROM appointments ORDER BY date, start_time');
+    // Il wrapper ritorna [rows], quindi prendiamo result[0] che è l'array di righe
+    const appointments = Array.isArray(result) && result[0] ? result[0] : (result.rows || result || []);
     console.log('📋 Recupero appuntamenti - Totale:', appointments.length);
     
-    // Normalizza le date restituite da MySQL (potrebbero essere Date objects o stringhe)
+    // Normalizza le date restituite da PostgreSQL (potrebbero essere Date objects o stringhe)
     const normalizedAppointments = appointments.map(apt => {
       let dateStr = apt.date;
       if (dateStr instanceof Date) {
@@ -45,7 +47,7 @@ router.get('/', authMiddleware, async (req, res) => {
 // Crea nuovo appuntamento
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod } = req.body;
+    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold } = req.body;
     
     console.log('📝 Creazione appuntamento - Dati ricevuti:', {
       employeeId,
@@ -54,21 +56,22 @@ router.post('/', authMiddleware, async (req, res) => {
       endTime,
       clientName,
       serviceType,
-      paymentMethod
+      paymentMethod,
+      productSold
     });
     
-    // Normalizza la data per MySQL (assicura formato YYYY-MM-DD)
+    // Normalizza la data per PostgreSQL (assicura formato YYYY-MM-DD)
     let normalizedDate = date;
     if (normalizedDate && typeof normalizedDate === 'string') {
       normalizedDate = normalizedDate.split('T')[0]; // Rimuove eventuali timestamp
     }
     
     console.log('📝 Data ricevuta:', date);
-    console.log('📝 Data normalizzata per MySQL:', normalizedDate);
+    console.log('📝 Data normalizzata per PostgreSQL:', normalizedDate);
     
     const [result] = await pool.query(
-      'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
-      [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod || 'da-pagare']
+      'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod || 'da-pagare', productSold || null]
     );
     
     const newId = result[0]?.id;
@@ -91,9 +94,9 @@ router.post('/', authMiddleware, async (req, res) => {
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod } = req.body;
+    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold } = req.body;
     
-    // Normalizza la data per MySQL (assicura formato YYYY-MM-DD)
+    // Normalizza la data per PostgreSQL (assicura formato YYYY-MM-DD)
     let normalizedDate = date;
     if (normalizedDate && typeof normalizedDate === 'string') {
       normalizedDate = normalizedDate.split('T')[0]; // Rimuove eventuali timestamp
@@ -101,12 +104,12 @@ router.put('/:id', authMiddleware, async (req, res) => {
     
     console.log('📝 Aggiornamento appuntamento ID:', id);
     console.log('📝 Data ricevuta:', date);
-    console.log('📝 Data normalizzata per MySQL:', normalizedDate);
-    console.log('📝 Dati ricevuti:', { employeeId, date: normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod });
+    console.log('📝 Data normalizzata per PostgreSQL:', normalizedDate);
+    console.log('📝 Dati ricevuti:', { employeeId, date: normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, productSold });
     
     await pool.query(
-      'UPDATE appointments SET employee_id = ?, date = ?, start_time = ?, end_time = ?, client_name = ?, service_type = ?, payment_method = ? WHERE id = ?',
-      [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, id]
+      'UPDATE appointments SET employee_id = ?, date = ?, start_time = ?, end_time = ?, client_name = ?, service_type = ?, payment_method = ?, product_sold = ? WHERE id = ?',
+      [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, productSold || null, id]
     );
     
     // Recupera l'appuntamento aggiornato per verificare
