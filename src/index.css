@@ -99,3 +99,105 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+/* Forza visualizzazione mobile su tablet e iPad */
+@media (max-width: 1024px) {
+  body {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  
+  /* Previene lo zoom automatico su input focus (iOS) */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Regole specifiche per iPad e tablet in orientamento landscape */
+@media (max-width: 1024px) and (orientation: landscape) {
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Stili globali per checkbox su dispositivi touch */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+  touch-action: manipulation;
+}
+
+input[type="checkbox"]:checked {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #000000;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+input[type="checkbox"]:active {
+  transform: scale(0.95);
+}
+
+/* Assicura che i checkbox personalizzati funzionino su iOS/Safari */
+@supports (-webkit-touch-callout: none) {
+  input[type="checkbox"] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+  
+  input[type="checkbox"]:checked {
+    background: #ffffff !important;
+    border-color: #ffffff !important;
+  }
+  
+  input[type="checkbox"]:checked::after {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+}
+
+/* Regole aggiuntive per dispositivi touch */
+@media (hover: none) and (pointer: coarse) {
+  input[type="checkbox"] {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+  }
+  
+  input[type="checkbox"]:checked::after {
+    font-size: 18px;
+  }
+}

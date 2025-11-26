@@ -230,7 +230,7 @@
   font-size: 1rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .profile-info-card {
     flex-direction: column;
     text-align: center;

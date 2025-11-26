@@ -174,7 +174,7 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .login-card {
     padding: 30px 20px;
   }
