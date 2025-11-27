@@ -17,7 +17,6 @@ const poolConfig = {
 
 // In PRODUZIONE (Render): usa DATABASE_URL da Supabase
 if (isProduction && process.env.DATABASE_URL) {
-  console.log('🔧 Modalità PRODUZIONE: uso database Supabase');
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ...poolConfig,
@@ -28,7 +27,6 @@ if (isProduction && process.env.DATABASE_URL) {
 } else {
   // In SVILUPPO LOCALE: usa sempre database PostgreSQL locale
   // Ignora DATABASE_URL anche se presente
-  console.log('🔧 Modalità SVILUPPO: uso database PostgreSQL locale');
   pool = new Pool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'postgres',
@@ -57,8 +55,6 @@ pool.on('error', (err) => {
 setTimeout(() => {
   pool.connect()
     .then(client => {
-      const dbName = isProduction ? 'Supabase (Produzione)' : 'PostgreSQL Locale';
-      console.log(`✅ Connesso al database ${dbName}`);
       client.release();
     })
     .catch(err => {

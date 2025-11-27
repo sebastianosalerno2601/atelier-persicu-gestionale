@@ -196,12 +196,14 @@
 
   .nav-menu {
     flex-direction: column;
-    position: absolute;
-    top: 100%;
+    position: fixed;
+    top: 100px;
     left: 0;
     right: 0;
+    bottom: 0;
     background: rgba(0, 0, 0, 0.95);
     padding: 1rem;
+    padding-bottom: 2rem;
     transform: translateY(-100%);
     opacity: 0;
     visibility: hidden;
@@ -209,8 +211,11 @@
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 1000;
     max-height: calc(100vh - 100px);
+    height: calc(100vh - 100px);
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   .nav-menu.open {
@@ -241,6 +246,8 @@
     flex-direction: column;
     width: 100%;
     padding-top: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
 
@@ -263,6 +270,15 @@
 
   .nav-header {
     height: 100px;
+  }
+
+  .logout-button {
+    width: 100%;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    min-height: 48px;
+    font-size: 1rem;
+    font-weight: 600;
   }
 }
 

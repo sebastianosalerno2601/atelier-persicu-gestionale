@@ -138,23 +138,8 @@ const Appointments = () => {
       const dateMatch = aptDate === selectedDate;
       const employeeMatch = aptEmployeeId === selectedEmpId;
       
-      // Debug log per capire perché non vengono mostrati
-      if (!dateMatch || !employeeMatch) {
-        console.log('Appuntamento filtrato:', {
-          aptId: apt.id,
-          aptDate,
-          selectedDate,
-          dateMatch,
-          aptEmployeeId,
-          selectedEmpId,
-          employeeMatch
-        });
-      }
-      
       return dateMatch && employeeMatch;
     });
-    
-    console.log(`Appuntamenti per il giorno ${selectedDate} e dipendente ${selectedEmployee}:`, filtered.length, filtered);
     
     return filtered;
   };
@@ -167,10 +152,6 @@ const Appointments = () => {
       const slotTime = timeSlot.split(':').slice(0, 2).join(':');
       return aptTime === slotTime;
     });
-    
-    if (filtered.length > 0) {
-      console.log(`Appuntamenti per slot ${timeSlot}:`, filtered.length, filtered);
-    }
     
     return filtered;
   };
@@ -428,11 +409,6 @@ const Appointments = () => {
             <div className="time-slots">
               {timeSlots.map(timeSlot => {
                 const appointmentsForSlot = getAppointmentsForTimeSlot(timeSlot);
-                
-                // Debug sempre attivo per capire il problema
-                if (appointmentsForSlot.length > 0) {
-                  console.log(`✅ Slot ${timeSlot} - Trovati ${appointmentsForSlot.length} appuntamenti:`, appointmentsForSlot);
-                }
                 
                 return (
                   <div

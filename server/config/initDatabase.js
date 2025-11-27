@@ -246,17 +246,13 @@ const initDatabase = async () => {
         'INSERT INTO users (username, password, role) VALUES ($1, $2, $3)',
         ['AntonioPersico', hashedPassword, 'superadmin']
       );
-      console.log('✅ Superadmin creato (username: AntonioPersico)');
     } else {
       // Aggiorna la password e il ruolo se l'utente esiste già
       await client.query(
         'UPDATE users SET password = $1, role = $2 WHERE username = $3',
         [hashedPassword, 'superadmin', 'AntonioPersico']
       );
-      console.log('✅ Credenziali superadmin aggiornate (username: AntonioPersico)');
     }
-    
-    console.log('✅ Database inizializzato correttamente');
   } catch (error) {
     console.error('❌ Errore inizializzazione database:', error);
     throw error;

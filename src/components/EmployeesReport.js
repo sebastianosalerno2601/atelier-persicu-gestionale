@@ -185,12 +185,15 @@ const EmployeesReport = () => {
       }
     });
 
-    const breakdownProducts = Object.keys(productsMap).map(product => ({
-      product,
-      count: productsMap[product].count,
-      total: productsMap[product].total,
-      price: PRODUCT_PRICES[product]
-    }));
+    // Mostra solo i prodotti effettivamente venduti (count > 0)
+    const breakdownProducts = Object.keys(productsMap)
+      .filter(product => productsMap[product].count > 0)
+      .map(product => ({
+        product,
+        count: productsMap[product].count,
+        total: productsMap[product].total,
+        price: PRODUCT_PRICES[product]
+      }));
 
     setProductsBreakdown(breakdownProducts);
     setTotalProductsCount(productsWithSold.length);

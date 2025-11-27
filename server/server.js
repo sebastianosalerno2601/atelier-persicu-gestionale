@@ -22,9 +22,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Inizializza database
 initDatabase()
-  .then(() => {
-    console.log('✅ Database inizializzato correttamente');
-  })
   .catch((err) => {
     console.error('❌ Errore inizializzazione database:', err);
     console.error('Stack trace:', err.stack);
@@ -49,7 +46,5 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server in ascolto sulla porta ${PORT}`);
-});
+app.listen(PORT);
 
