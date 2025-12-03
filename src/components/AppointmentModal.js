@@ -10,7 +10,7 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
   const [startTime, setStartTime] = useState(appointment?.startTime || defaultTimeSlot || '09:00');
   const [endTime, setEndTime] = useState(appointment?.endTime || '');
   const [paymentMethod, setPaymentMethod] = useState(appointment?.paymentMethod || 'da-pagare');
-  const [isRecurring, setIsRecurring] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(appointment?.isRecurring || !!appointment?.recurrenceGroupId || false);
   const [hasProductSold, setHasProductSold] = useState(!!appointment?.productSold);
   const [productSold, setProductSold] = useState(appointment?.productSold || '');
 
@@ -22,6 +22,13 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
       setEndTime(calculatedEndTime);
     }
   }, [serviceType, startTime]);
+
+  useEffect(() => {
+    // Aggiorna isRecurring quando cambia l'appuntamento
+    if (appointment) {
+      setIsRecurring(appointment.isRecurring || !!appointment.recurrenceGroupId || false);
+    }
+  }, [appointment]);
 
   const handleServiceChange = (e) => {
     const newService = e.target.value;
@@ -46,7 +53,7 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
       startTime,
       endTime,
       paymentMethod,
-      isRecurring: isRecurring && !isEditing,
+      isRecurring: isEditing ? isRecurring : (isRecurring && !isEditing),
       productSold: hasProductSold ? productSold : null
     });
   };
@@ -194,6 +201,32 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
               </label>
               <small className="form-hint">
                 Crea lo stesso appuntamento ogni settimana per 1 anno a partire dalla data selezionata
+              </small>
+            </div>
+          )}
+          
+          {isEditing && (appointment?.isRecurring || appointment?.recurrenceGroupId) && (
+            <div className="form-group checkbox-group">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(e) => {
+                    const newValue = e.target.checked;
+                    if (!newValue) {
+                      const confirmMessage = 'Sei sicuro di voler rimuovere la ricorrenza settimanale? Tutti gli appuntamenti futuri di questo cliente verranno cancellati.';
+                      if (window.confirm(confirmMessage)) {
+                        setIsRecurring(false);
+                      }
+                    } else {
+                      setIsRecurring(true);
+                    }
+                  }}
+                />
+                <span>Ricorrenza settimanale (per 1 anno)</span>
+              </label>
+              <small className="form-hint">
+                Deflaggare rimuoverà la ricorrenza e cancellerà tutti gli appuntamenti futuri di questo cliente
               </small>
             </div>
           )}

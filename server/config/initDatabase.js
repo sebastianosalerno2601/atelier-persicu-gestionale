@@ -128,6 +128,26 @@ const initDatabase = async () => {
       END $$;
     `);
     
+    // Aggiungi colonne per ricorrenza se non esistenti
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'appointments' AND column_name = 'recurrence_group_id'
+        ) THEN
+          ALTER TABLE appointments ADD COLUMN recurrence_group_id VARCHAR(255) NULL;
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'appointments' AND column_name = 'is_recurring'
+        ) THEN
+          ALTER TABLE appointments ADD COLUMN is_recurring BOOLEAN NOT NULL DEFAULT FALSE;
+        END IF;
+      END $$;
+    `);
+    
     await client.query(`
       DROP TRIGGER IF EXISTS update_appointments_updated_at ON appointments;
       CREATE TRIGGER update_appointments_updated_at
@@ -139,6 +159,7 @@ const initDatabase = async () => {
     // Indici per appuntamenti
     await client.query(`CREATE INDEX IF NOT EXISTS idx_date ON appointments (date)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_date ON appointments (employee_id, date)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_recurrence_group ON appointments (recurrence_group_id)`);
     
     // Tabella utenze
     await client.query(`

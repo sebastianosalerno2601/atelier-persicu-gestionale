@@ -18,6 +18,8 @@ const EmployeesReport = () => {
   const [productsBreakdown, setProductsBreakdown] = useState([]);
   const [totalProductsCount, setTotalProductsCount] = useState(0);
   const [showProductsBreakdown, setShowProductsBreakdown] = useState(false);
+  const [auth, setAuth] = useState(null);
+  const [earningsDifference, setEarningsDifference] = useState({}); // { employeeId: { current: number, previous: number, difference: number } }
 
   // Prezzi prodotti
   const PRODUCT_PRICES = {
@@ -82,6 +84,10 @@ const EmployeesReport = () => {
   }, []);
 
   useEffect(() => {
+    // Carica auth per verificare se è superadmin
+    const authData = JSON.parse(localStorage.getItem('atelier-auth') || '{}');
+    setAuth(authData);
+    
     loadEmployees();
     loadAppointments();
   }, [loadEmployees, loadAppointments]);
@@ -212,6 +218,57 @@ const EmployeesReport = () => {
       calculateMonthlyEarnings();
     }
   }, [selectedEmployee, calculateMonthlyEarnings, appointments]);
+
+  // Calcola la differenza di guadagno per tutti i dipendenti (solo per superadmin)
+  useEffect(() => {
+    if (auth?.role !== 'superadmin' || appointments.length === 0 || employees.length === 0) {
+      return;
+    }
+
+    const calculateEarningsForMonth = (employeeId, year, month) => {
+      const filteredAppointments = appointments.filter(apt => {
+        const aptEmployeeId = typeof apt.employeeId === 'string' ? parseInt(apt.employeeId) : apt.employeeId;
+        const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
+        
+        if (aptEmployeeId !== empId) return false;
+        if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+        
+        const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
+        const aptDate = new Date(aptDateStr);
+        
+        return aptDate.getFullYear() === year && aptDate.getMonth() === month;
+      });
+
+      const totalRevenue = filteredAppointments.reduce((sum, apt) => {
+        return sum + getPrice(apt.serviceType);
+      }, 0);
+
+      return totalRevenue * 0.4; // 40% per il dipendente
+    };
+
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    
+    // Calcola mese precedente
+    const previousMonth = month === 0 ? 11 : month - 1;
+    const previousYear = month === 0 ? year - 1 : year;
+
+    const differences = {};
+    
+    employees.forEach(employee => {
+      const currentEarnings = calculateEarningsForMonth(employee.id, year, month);
+      const previousEarnings = calculateEarningsForMonth(employee.id, previousYear, previousMonth);
+      const difference = currentEarnings - previousEarnings;
+
+      differences[employee.id] = {
+        current: currentEarnings,
+        previous: previousEarnings,
+        difference: difference
+      };
+    });
+
+    setEarningsDifference(differences);
+  }, [auth, appointments, employees, currentMonth]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -357,6 +414,53 @@ const EmployeesReport = () => {
               {selectedEmployeeData.email && (
                 <p className="report-email">{selectedEmployeeData.email}</p>
               )}
+              {auth?.role === 'superadmin' && (() => {
+                const employeeId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee) : selectedEmployee;
+                const diff = earningsDifference[employeeId];
+                if (!diff) return null;
+                
+                const employeeName = selectedEmployeeData.fullName || selectedEmployeeData.name || 'il dipendente';
+                
+                let messageStyle = {
+                  marginTop: '10px',
+                  padding: '10px 15px',
+                  borderRadius: '6px',
+                  fontSize: '0.95em',
+                  lineHeight: '1.5'
+                };
+                
+                if (diff.difference > 0) {
+                  const diffAmount = Math.abs(diff.difference).toFixed(2);
+                  messageStyle.color = '#4caf50';
+                  messageStyle.backgroundColor = 'rgba(76, 175, 80, 0.15)';
+                  messageStyle.border = '1px solid rgba(76, 175, 80, 0.3)';
+                  return (
+                    <div style={messageStyle}>
+                      Complimenti al dipendente <strong>{employeeName}</strong> che questo mese ha guadagnato <strong>{diffAmount}€</strong> in più al mese precedente!
+                    </div>
+                  );
+                } else if (diff.difference < 0) {
+                  const diffAmount = Math.abs(diff.difference).toFixed(2);
+                  messageStyle.color = '#f44336';
+                  messageStyle.backgroundColor = 'rgba(244, 67, 54, 0.15)';
+                  messageStyle.border = '1px solid rgba(244, 67, 54, 0.3)';
+                  return (
+                    <div style={messageStyle}>
+                      Attenzione il dipendente <strong>{employeeName}</strong> questo mese è sotto di <strong>{diffAmount}€</strong> al paragone del mese precedente!
+                    </div>
+                  );
+                } else {
+                  // diff.difference === 0 (in pari)
+                  messageStyle.color = '#4caf50';
+                  messageStyle.backgroundColor = 'rgba(76, 175, 80, 0.15)';
+                  messageStyle.border = '1px solid rgba(76, 175, 80, 0.3)';
+                  return (
+                    <div style={messageStyle}>
+                      Complimenti al dipendente <strong>{employeeName}</strong> che questo mese ha eguagliato lo stesso guadagno del mese precedente!
+                    </div>
+                  );
+                }
+              })()}
             </div>
           </div>
 

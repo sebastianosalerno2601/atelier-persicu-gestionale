@@ -24,7 +24,9 @@ const appointmentToCamelCase = (obj) => {
     clientName: obj.client_name,
     serviceType: obj.service_type,
     paymentMethod: obj.payment_method,
-    productSold: obj.product_sold || null
+    productSold: obj.product_sold || null,
+    recurrenceGroupId: obj.recurrence_group_id || null,
+    isRecurring: obj.is_recurring || false
   };
 };
 
@@ -46,7 +48,9 @@ const appointmentToSnakeCase = (obj) => {
     clientName: obj.clientName,
     serviceType: obj.serviceType,
     paymentMethod: obj.paymentMethod,
-    productSold: obj.productSold || null
+    productSold: obj.productSold || null,
+    recurrenceGroupId: obj.recurrenceGroupId || null,
+    isRecurring: obj.isRecurring || false
   };
 };
 
@@ -68,6 +72,7 @@ const Appointments = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [isUnpaidModalOpen, setIsUnpaidModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [auth, setAuth] = useState(null);
 
   // Funzione per convertire snake_case a camelCase per i dipendenti
   const employeeToCamelCase = (obj) => {
@@ -98,6 +103,10 @@ const Appointments = () => {
   }, [selectedEmployee]);
 
   useEffect(() => {
+    // Carica auth per verificare se è dipendente
+    const authData = JSON.parse(localStorage.getItem('atelier-auth') || '{}');
+    setAuth(authData);
+    
     loadEmployees();
     loadAppointments();
   }, []);
@@ -175,8 +184,19 @@ const Appointments = () => {
     try {
       if (selectedAppointment) {
         // Modifica appuntamento esistente
+        // Determina se l'appuntamento era ricorrente (controlla sia isRecurring che recurrenceGroupId)
+        const wasRecurring = selectedAppointment.isRecurring || !!selectedAppointment.recurrenceGroupId;
+        // Se isRecurring non è stato passato, mantieni il valore originale
+        const finalIsRecurring = appointmentData.isRecurring !== undefined ? appointmentData.isRecurring : wasRecurring;
+        
         const appointmentToUpdate = {
-          ...appointmentToSnakeCase({ ...selectedAppointment, ...appointmentData, employeeId: selectedAppointment.employeeId, date: selectedAppointment.date })
+          ...appointmentToSnakeCase({ 
+            ...selectedAppointment, 
+            ...appointmentData, 
+            employeeId: selectedAppointment.employeeId, 
+            date: selectedAppointment.date,
+            isRecurring: finalIsRecurring
+          })
         };
         await updateAppointment(selectedAppointment.id, appointmentToUpdate);
       } else {
@@ -185,13 +205,18 @@ const Appointments = () => {
           // Crea ricorrenze settimanali per 1 anno
           const recurringDates = generateWeeklyRecurrences(selectedDate, 52);
           
+          // Genera un ID univoco per il gruppo di ricorrenza
+          const recurrenceGroupId = `recur_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
           // Crea tutti gli appuntamenti ricorrenti
           for (const date of recurringDates) {
             const newAppointment = {
               ...appointmentToSnakeCase({
                 ...appointmentData,
                 date: date,
-                employeeId: selectedEmployee
+                employeeId: selectedEmployee,
+                recurrenceGroupId: recurrenceGroupId,
+                isRecurring: true
               })
             };
             await createAppointment(newAppointment);
@@ -202,7 +227,8 @@ const Appointments = () => {
             ...appointmentToSnakeCase({
               ...appointmentData,
               date: selectedDate,
-              employeeId: selectedEmployee
+              employeeId: selectedEmployee,
+              isRecurring: false
             })
           };
           await createAppointment(newAppointment);
@@ -328,6 +354,252 @@ const Appointments = () => {
     }
   }, [selectedEmployee, selectedDate, appointments, getDailyEarningsMemo]);
 
+  // Funzioni helper per calcolare le settimane
+  const getStartOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Lunedì è il primo giorno
+    return new Date(d.setDate(diff));
+  };
+
+  const getEndOfWeek = (date) => {
+    const start = getStartOfWeek(date);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6); // Domenica
+    return end;
+  };
+
+  const formatDateForComparison = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isDateInRange = (dateStr, startDate, endDate) => {
+    const date = new Date(dateStr);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return date >= start && date <= end;
+  };
+
+  // Calcola il guadagno lordo (senza 40%) per una settimana
+  const getWeeklyGrossEarnings = useCallback((employeeId, startDate, endDate) => {
+    // Normalizza le date di inizio e fine settimana
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    
+    const weekAppointments = appointments.filter(apt => {
+      const aptEmployeeId = typeof apt.employeeId === 'string' ? parseInt(apt.employeeId) : apt.employeeId;
+      const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
+      
+      if (aptEmployeeId !== empId) return false;
+      if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+      
+      // Normalizza la data dell'appuntamento
+      const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
+      if (!aptDateStr) return false;
+      
+      const aptDate = new Date(aptDateStr);
+      aptDate.setHours(0, 0, 0, 0);
+      
+      // Verifica se la data è nel range
+      return aptDate >= start && aptDate <= end;
+    });
+
+    return weekAppointments.reduce((total, apt) => {
+      return total + getPrice(apt.serviceType);
+    }, 0);
+  }, [appointments]);
+
+  // Verifica se siamo nella prima settimana del mese (settimana effettiva che contiene l'1)
+  const isFirstWeekOfMonth = useCallback(() => {
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    // Ottieni l'inizio della settimana che contiene il primo giorno del mese
+    const weekStartOfFirstDay = getStartOfWeek(firstDayOfMonth);
+    const weekEndOfFirstDay = getEndOfWeek(firstDayOfMonth);
+    
+    // Ottieni l'inizio della settimana corrente
+    const weekStartOfToday = getStartOfWeek(today);
+    const weekEndOfToday = getEndOfWeek(today);
+    
+    // Normalizza le date per confronto (solo anno, mese, giorno)
+    const normalizeDate = (date) => {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    };
+    
+    const firstWeekStart = normalizeDate(weekStartOfFirstDay);
+    const firstWeekEnd = normalizeDate(weekEndOfFirstDay);
+    const currentWeekStart = normalizeDate(weekStartOfToday);
+    const currentWeekEnd = normalizeDate(weekEndOfToday);
+    
+    // Verifica se la settimana corrente è la stessa settimana che contiene il primo giorno del mese
+    return currentWeekStart.getTime() === firstWeekStart.getTime() && 
+           currentWeekEnd.getTime() === firstWeekEnd.getTime();
+  }, []);
+
+  // Citazioni motivazionali mensili
+  const monthlyQuotes = {
+    11: "Il successo di molti imprenditori è dovuto alla loro capacità di scegliere i collaboratori più adatti e qualificati. (Napoleon Hill)",
+    0: "Quando tutto sembra andare male, ricorda che gli aerei decollano contro vento, non con il vento a favore. (Henry Ford)",
+    1: "L'unico vantaggio competitivo sostenibile consiste nella capacità di apprendere e di cambiare più rapidamente degli altri. (Philip Kotler)",
+    2: "Non importa quanto un uomo possa fare, non importa quanto coinvolgente la sua personalità possa essere, egli non farà molta strada negli affari se non sarà in grado di lavorare con gli altri. (John Craig)",
+    3: "Iniziare un nuovo cammino spaventa. Ma dopo ogni passo che percorriamo ci rendiamo conto di come era pericoloso rimanere fermi. (Roberto Benigni)",
+    4: "Le due cose più importanti non compaiono nel bilancio di un'impresa: la sua reputazione e i suoi uomini. (Henry Ford)",
+    5: "Sono convinto che circa la metà di quello che separa gli imprenditori di successo da quelli che non hanno successo sia la pura perseveranza. (Steve Jobs)",
+    6: "I tuoi clienti più insoddisfatti sono la tua più grande fonte di apprendimento. (Bill Gates)",
+    7: "Alcune persone sognano il successo, mentre altre si alzano ogni mattina e lo fanno accadere. (Wayne Huizenga)",
+    8: "Non ho mai sognato il successo. Ho lavorato per ottenerlo. (Estee Lauder)",
+    9: "Il successo di solito arriva a coloro che sono troppo occupati per cercarlo. (Henry David Thoreau)",
+    10: "È dura battere una persona che non si arrende mai. (Babe Ruth)"
+  };
+
+  // Calcola i messaggi motivazionali
+  const getMotivationalMessage = useCallback(() => {
+    if (!auth || !selectedEmployee) return null;
+    
+    const selectedEmp = employees.find(emp => emp.id === selectedEmployee);
+    if (!selectedEmp) return null;
+    
+    // Se non è superadmin, mostra i messaggi solo se il dipendente selezionato corrisponde all'utente loggato
+    if (auth.role !== 'superadmin' && auth.employee_id && selectedEmployee !== auth.employee_id) {
+      return null;
+    }
+    
+    const today = new Date();
+    const currentWeekStart = getStartOfWeek(today);
+    const currentWeekEnd = getEndOfWeek(today);
+    const previousWeekStart = new Date(currentWeekStart);
+    previousWeekStart.setDate(currentWeekStart.getDate() - 7);
+    const previousWeekEnd = new Date(currentWeekEnd);
+    previousWeekEnd.setDate(currentWeekEnd.getDate() - 7);
+
+    // Mostra sempre la citazione mensile
+    const month = today.getMonth();
+    const quote = monthlyQuotes[month];
+    
+    const employeeName = selectedEmp?.fullName || 'dipendente';
+    
+    // Confronto con settimana precedente (anche nella prima settimana per controllare i messaggi settimanali)
+    const currentWeekEarnings = getWeeklyGrossEarnings(selectedEmployee, currentWeekStart, currentWeekEnd);
+    const previousWeekEarnings = getWeeklyGrossEarnings(selectedEmployee, previousWeekStart, previousWeekEnd);
+
+    const dayOfWeek = today.getDay(); // 0 = Domenica, 6 = Sabato
+    const isSaturday = dayOfWeek === 6;
+
+    // Se c'è guadagno della settimana precedente, mostra messaggi settimanali
+    if (previousWeekEarnings > 0) {
+      // Durante la settimana: se ha già superato
+      if (currentWeekEarnings > previousWeekEarnings) {
+        return {
+          type: 'success',
+          message: `Complimenti ${employeeName} hai superato il lordo della settimana precedente, su di te? NESSUN DUBBIO!`,
+          style: {
+            color: '#4caf50',
+            backgroundColor: 'rgba(76, 175, 80, 0.15)',
+            border: '1px solid rgba(76, 175, 80, 0.3)'
+          }
+        };
+      }
+
+      // Al sabato: verifica finale
+      if (isSaturday) {
+        if (currentWeekEarnings < previousWeekEarnings) {
+          return {
+            type: 'warning',
+            message: `Attenzione ${employeeName} questa settimana non hai superato il guadagno lordo della settimana precedente, ma sono sicuro che la prossima settimana non sarà così. 😉`,
+            style: {
+              color: '#f44336',
+              backgroundColor: 'rgba(244, 67, 54, 0.15)',
+              border: '1px solid rgba(244, 67, 54, 0.3)'
+            }
+          };
+        } else if (currentWeekEarnings === previousWeekEarnings) {
+          return {
+            type: 'equal',
+            message: `Complimenti ${employeeName}, hai incassato ${previousWeekEarnings.toFixed(2)}€ come la settimana precedente, continua così, mi aspetto sempre di più da te!`,
+            style: {
+              color: '#4caf50',
+              backgroundColor: 'rgba(76, 175, 80, 0.15)',
+              border: '1px solid rgba(76, 175, 80, 0.3)'
+            }
+          };
+        }
+      }
+
+      // Durante la settimana: messaggio di incoraggiamento con guadagno settimana precedente
+      return {
+        type: 'encouragement',
+        message: `Bravo ${employeeName} la settimana precedente hai guadagnato un totale lordo di ${previousWeekEarnings.toFixed(2)}€, questa settimana cerchiamo di superare questa somma!!`,
+        style: {
+          color: '#2196F3',
+          backgroundColor: 'rgba(33, 150, 243, 0.15)',
+          border: '1px solid rgba(33, 150, 243, 0.3)'
+        }
+      };
+    }
+
+    // Se non c'è guadagno della settimana precedente e non è la prima settimana, mostra solo la citazione mensile
+    if (previousWeekEarnings === 0 && !isFirstWeekOfMonth()) {
+      if (quote) {
+        return {
+          type: 'quote',
+          message: quote,
+          style: {
+            color: '#4caf50',
+            backgroundColor: 'rgba(76, 175, 80, 0.15)',
+            border: '1px solid rgba(76, 175, 80, 0.3)'
+          }
+        };
+      }
+    }
+
+    // Se siamo nella prima settimana e non ci sono dati settimanali, non ritornare nulla (il messaggio sarà gestito separatamente)
+    if (isFirstWeekOfMonth() && previousWeekEarnings === 0) {
+      return null;
+    }
+
+    return null;
+  }, [auth, selectedEmployee, employees, appointments, getWeeklyGrossEarnings, isFirstWeekOfMonth]);
+
+  const motivationalMessage = getMotivationalMessage();
+  
+  // Ottieni sempre la citazione mensile
+  const getMonthlyQuote = useCallback(() => {
+    if (!auth || !selectedEmployee) return null;
+    const today = new Date();
+    const month = today.getMonth();
+    return monthlyQuotes[month] || null;
+  }, [auth, selectedEmployee]);
+
+  const monthlyQuote = getMonthlyQuote();
+  
+  // Ottieni il messaggio di inizio settimana (solo nella prima settimana)
+  const getFirstWeekMessage = useCallback(() => {
+    if (!auth || !selectedEmployee) return null;
+    const selectedEmp = employees.find(emp => {
+      const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id;
+      const selId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee) : selectedEmployee;
+      return empId === selId;
+    });
+    if (!selectedEmp) return null;
+    
+    // Verifica se siamo nella prima settimana
+    try {
+      if (!isFirstWeekOfMonth()) return null;
+    } catch (e) {
+      return null;
+    }
+    
+    const employeeName = selectedEmp?.fullName || selectedEmp?.name || 'dipendente';
+    return `Buon inizio settimana ${employeeName}`;
+  }, [auth, selectedEmployee, employees, isFirstWeekOfMonth]);
+  
+  const firstWeekMessage = getFirstWeekMessage();
   const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployee);
   const unpaidAppointments = getUnpaidAppointments();
 
@@ -386,6 +658,55 @@ const Appointments = () => {
                   </div>
                 </div>
               </div>
+
+              {firstWeekMessage && (
+                <div 
+                  style={{
+                    margin: '15px 0',
+                    padding: '12px 18px',
+                    borderRadius: '8px',
+                    fontSize: '1em',
+                    lineHeight: '1.6',
+                    color: '#4caf50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                    border: '1px solid rgba(76, 175, 80, 0.3)'
+                  }}
+                >
+                  {firstWeekMessage}
+                </div>
+              )}
+
+              {monthlyQuote && (
+                <div 
+                  style={{
+                    margin: '15px 0',
+                    padding: '12px 18px',
+                    borderRadius: '8px',
+                    fontSize: '1em',
+                    lineHeight: '1.6',
+                    color: '#4caf50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+                    border: '1px solid rgba(76, 175, 80, 0.3)'
+                  }}
+                >
+                  {monthlyQuote}
+                </div>
+              )}
+
+              {motivationalMessage && motivationalMessage.type !== 'quote' && motivationalMessage.type !== 'first-week' && (
+                <div 
+                  style={{
+                    margin: '15px 0',
+                    padding: '12px 18px',
+                    borderRadius: '8px',
+                    fontSize: '1em',
+                    lineHeight: '1.6',
+                    ...motivationalMessage.style
+                  }}
+                >
+                  {motivationalMessage.message}
+                </div>
+              )}
 
               {unpaidAppointments.length > 0 && (
                 <button
