@@ -484,7 +484,12 @@ const Appointments = () => {
     
     const employeeName = selectedEmp?.fullName || 'dipendente';
     
-    // Confronto con settimana precedente (anche nella prima settimana per controllare i messaggi settimanali)
+    // Se siamo nella prima settimana del mese, non mostrare messaggi settimanali
+    if (isFirstWeekOfMonth()) {
+      return null; // I messaggi settimanali vengono gestiti separatamente
+    }
+    
+    // Confronto con settimana precedente (solo dalla seconda settimana in poi)
     const currentWeekEarnings = getWeeklyGrossEarnings(selectedEmployee, currentWeekStart, currentWeekEnd);
     const previousWeekEarnings = getWeeklyGrossEarnings(selectedEmployee, previousWeekStart, previousWeekEnd);
 
