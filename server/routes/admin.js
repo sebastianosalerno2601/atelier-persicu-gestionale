@@ -132,19 +132,44 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
           continue;
         }
         
-        // Se è un gruppo "potential_", verifica che siano effettivamente ricorrenti settimanalmente
-        if (groupId.startsWith('potential_')) {
-          let isRecurring = true;
-          apts.sort((a, b) => {
-            const dateA = new Date(a.date);
-            const dateB = new Date(b.date);
+        // Ordina per data per trovare il primo
+        apts.sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          if (dateA.getTime() !== dateB.getTime()) {
             return dateA - dateB;
-          });
+          }
+          // Se stessa data, ordina per ID (mantieni quello più vecchio)
+          return a.id - b.id;
+        });
+        
+        // Se è un gruppo "potential_", verifica che siano effettivamente ricorrenti settimanalmente
+        // Prima rimuovi i duplicati nella stessa data (mantieni solo il primo per data)
+        if (groupId.startsWith('potential_')) {
+          const uniqueDates = {};
+          const deduplicatedApts = [];
           
-          // Verifica i primi 10 appuntamenti per vedere se sono settimanali
-          for (let i = 1; i < Math.min(apts.length, 10); i++) {
-            const prevDate = new Date(apts[i - 1].date);
-            const currDate = new Date(apts[i].date);
+          for (const apt of apts) {
+            const dateKey = apt.date ? apt.date.split('T')[0] : apt.date;
+            if (!uniqueDates[dateKey]) {
+              uniqueDates[dateKey] = true;
+              deduplicatedApts.push(apt);
+            } else {
+              // Duplicato nella stessa data - lo aggiungiamo agli altri da eliminare
+              // ma non lo consideriamo per la verifica della ricorrenza
+            }
+          }
+          
+          // Se dopo la deduplicazione ci sono meno di 2 appuntamenti, salta
+          if (deduplicatedApts.length < 2) {
+            continue;
+          }
+          
+          // Verifica che i rimanenti siano settimanali
+          let isRecurring = true;
+          for (let i = 1; i < Math.min(deduplicatedApts.length, 10); i++) {
+            const prevDate = new Date(deduplicatedApts[i - 1].date);
+            const currDate = new Date(deduplicatedApts[i].date);
             const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
             
             if (daysDiff < 5 || daysDiff > 9) {
@@ -157,20 +182,18 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
             // Non è una vera ricorrenza settimanale, salta
             continue;
           }
+          
+          // Usa gli appuntamenti deduplicati per trovare il primo
+          apts = deduplicatedApts;
         }
         
-        // Ordina per data per trovare il primo
-        apts.sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
-          if (dateA.getTime() !== dateB.getTime()) {
-            return dateA - dateB;
-          }
-          return a.start_time.localeCompare(b.start_time);
-        });
-        
+        // Il primo appuntamento (il più vecchio, dopo deduplicazione se necessario)
         const firstAppointment = apts[0];
-        const otherAppointments = apts.slice(1);
+        // Tutti gli altri appuntamenti (incluse eventuali duplicati nella stessa data del primo)
+        const otherAppointments = apts.filter(apt => {
+          // Mantieni solo il primo, tutti gli altri vanno eliminati
+          return apt.id !== firstAppointment.id;
+        });
         
         // Rimuovi il flag di ricorrenza dal primo appuntamento
         await pool.query(
