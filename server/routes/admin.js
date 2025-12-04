@@ -160,18 +160,48 @@ router.get('/debug-recurrences', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Accesso negato. Solo il superadmin può eseguire questa operazione.' });
     }
 
-    // Trova tutti gli appuntamenti con ricorrenza
-    const [appointments] = await pool.query(
+    // Trova tutti gli appuntamenti con ricorrenza (con flag)
+    const [appointmentsWithFlag] = await pool.query(
       'SELECT id, client_name, date, start_time, recurrence_group_id, is_recurring FROM appointments WHERE (recurrence_group_id IS NOT NULL OR is_recurring = TRUE) ORDER BY date, start_time LIMIT 100'
     );
 
     // Trova anche tutti gli appuntamenti per vedere il totale
     const [allAppointments] = await pool.query('SELECT COUNT(*) as total FROM appointments');
     
+    // Trova potenziali ricorrenze (stesso cliente, stesso orario, stesso tipo servizio, 2+ appuntamenti)
+    // Usa CURRENT_DATE invece di INTERVAL per compatibilità
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    
+    const [potentialRecurrences] = await pool.query(
+      `SELECT client_name, start_time, service_type, COUNT(*) as count
+       FROM appointments
+       WHERE date >= ?
+       GROUP BY client_name, start_time, service_type
+       HAVING COUNT(*) >= 2
+       ORDER BY count DESC
+       LIMIT 20`,
+      [sixMonthsAgoStr]
+    );
+
+    // Per ogni potenziale ricorrenza, prendi i dettagli degli appuntamenti
+    const potentialDetails = {};
+    for (const potential of potentialRecurrences || []) {
+      const [details] = await pool.query(
+        'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE client_name = ? AND start_time = ? AND service_type = ? ORDER BY date LIMIT 10',
+        [potential.client_name, potential.start_time, potential.service_type]
+      );
+      potentialDetails[`${potential.client_name}_${potential.start_time}_${potential.service_type}`] = {
+        count: potential.count,
+        appointments: details || []
+      };
+    }
+    
     // Raggruppa per recurrence_group_id
     const groups = {};
-    if (Array.isArray(appointments)) {
-      appointments.forEach(apt => {
+    if (Array.isArray(appointmentsWithFlag)) {
+      appointmentsWithFlag.forEach(apt => {
         const groupId = apt.recurrence_group_id || 'NESSUN_GRUPPO';
         if (!groups[groupId]) {
           groups[groupId] = [];
@@ -182,10 +212,12 @@ router.get('/debug-recurrences', authMiddleware, async (req, res) => {
 
     res.json({
       totalAppointments: allAppointments[0]?.total || 0,
-      recurringAppointments: Array.isArray(appointments) ? appointments.length : 0,
+      recurringAppointments: Array.isArray(appointmentsWithFlag) ? appointmentsWithFlag.length : 0,
       groups: Object.keys(groups).length,
-      appointments: Array.isArray(appointments) ? appointments : [],
-      groupsDetail: groups
+      appointments: Array.isArray(appointmentsWithFlag) ? appointmentsWithFlag : [],
+      groupsDetail: groups,
+      potentialRecurrences: potentialRecurrences || [],
+      potentialDetails: potentialDetails
     });
   } catch (error) {
     console.error('❌ Errore debug:', error);
