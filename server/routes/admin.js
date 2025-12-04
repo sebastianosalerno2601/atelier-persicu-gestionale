@@ -60,7 +60,16 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
         const deduplicated = [];
         
         for (const apt of groupAppointments) {
-          const dateKey = apt.date ? apt.date.split('T')[0] : apt.date;
+          // Normalizza la data: può essere stringa o oggetto Date
+          let dateKey;
+          if (apt.date instanceof Date) {
+            dateKey = apt.date.toISOString().split('T')[0];
+          } else if (typeof apt.date === 'string') {
+            dateKey = apt.date.split('T')[0];
+          } else {
+            dateKey = apt.date;
+          }
+          
           if (!uniqueDates[dateKey]) {
             uniqueDates[dateKey] = true;
             deduplicated.push(apt);
@@ -180,7 +189,16 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
           const deduplicatedApts = [];
           
           for (const apt of apts) {
-            const dateKey = apt.date ? apt.date.split('T')[0] : apt.date;
+            // Normalizza la data: può essere stringa o oggetto Date
+            let dateKey;
+            if (apt.date instanceof Date) {
+              dateKey = apt.date.toISOString().split('T')[0];
+            } else if (typeof apt.date === 'string') {
+              dateKey = apt.date.split('T')[0];
+            } else {
+              dateKey = apt.date;
+            }
+            
             if (!uniqueDates[dateKey]) {
               uniqueDates[dateKey] = true;
               deduplicatedApts.push(apt);
