@@ -50,27 +50,57 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
     // Aggiungi appuntamenti potenzialmente ricorrenti senza flag
     for (const group of potentialGroups || []) {
       const [groupAppointments] = await pool.query(
-        'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE client_name = ? AND start_time = ? AND service_type = ? AND date >= ? ORDER BY date',
+        'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE client_name = ? AND start_time = ? AND service_type = ? AND date >= ? ORDER BY date, id',
         [group.client_name, group.start_time, group.service_type, sixMonthsAgoStr]
       );
       
       if (Array.isArray(groupAppointments) && groupAppointments.length >= 2) {
-        // Verifica che siano effettivamente ricorrenti settimanalmente
-        let isRecurring = true;
-        for (let i = 1; i < Math.min(groupAppointments.length, 10); i++) {
-          const prevDate = new Date(groupAppointments[i - 1].date);
-          const currDate = new Date(groupAppointments[i].date);
-          const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
-          
-          // Se la distanza non è 5-9 giorni, probabilmente non è una ricorrenza settimanale
-          if (daysDiff < 5 || daysDiff > 9) {
-            isRecurring = false;
-            break;
+        // Rimuovi duplicati nella stessa data (mantieni solo il primo per data)
+        const uniqueDates = {};
+        const deduplicated = [];
+        
+        for (const apt of groupAppointments) {
+          const dateKey = apt.date ? apt.date.split('T')[0] : apt.date;
+          if (!uniqueDates[dateKey]) {
+            uniqueDates[dateKey] = true;
+            deduplicated.push(apt);
           }
         }
         
-        if (isRecurring) {
-          allAppointments = allAppointments.concat(groupAppointments);
+        // Se dopo la deduplicazione ci sono almeno 2 appuntamenti, verifica se sono ricorrenti
+        if (deduplicated.length >= 2) {
+          // Verifica che siano effettivamente ricorrenti settimanalmente
+          let isRecurring = true;
+          let weeklyIntervals = 0;
+          
+          for (let i = 1; i < Math.min(deduplicated.length, 10); i++) {
+            const prevDate = new Date(deduplicated[i - 1].date);
+            const currDate = new Date(deduplicated[i].date);
+            const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+            
+            // Se la distanza è 5-9 giorni, è probabilmente settimanale
+            if (daysDiff >= 5 && daysDiff <= 9) {
+              weeklyIntervals++;
+            } else if (daysDiff < 5 || daysDiff > 9) {
+              // Se ci sono troppi intervalli non settimanali, non è una ricorrenza
+              // Ma accetta almeno 70% di intervalli settimanali per serie più lunghe
+              if (deduplicated.length > 3 && weeklyIntervals / (i - 1) < 0.7) {
+                isRecurring = false;
+                break;
+              } else if (deduplicated.length <= 3) {
+                // Per serie corte (2-3 appuntamenti), devono essere tutti settimanali
+                isRecurring = false;
+                break;
+              }
+            }
+          }
+          
+          // Se ha almeno 70% di intervalli settimanali o serie corta completamente settimanale
+          if (isRecurring && (deduplicated.length <= 3 || weeklyIntervals / Math.min(deduplicated.length - 1, 9) >= 0.5)) {
+            // Aggiungi TUTTI gli appuntamenti originali (inclusi duplicati), non solo quelli deduplicati
+            // così possiamo eliminarli tutti
+            allAppointments = allAppointments.concat(groupAppointments);
+          }
         }
       }
     }
