@@ -71,9 +71,22 @@ export const generateId = () => {
 
 // Helper per aggiungere giorni a una data
 export const addDays = (dateString, days) => {
-  const date = new Date(dateString);
+  // Normalizza la data stringa (rimuovi timestamp se presente)
+  const cleanDateString = dateString ? dateString.split('T')[0] : dateString;
+  
+  // Crea la data usando il formato YYYY-MM-DD e imposta le ore a mezzogiorno locale per evitare problemi con i fusi orari
+  const [year, month, day] = cleanDateString.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0); // Mezzogiorno locale
+  
+  // Aggiungi i giorni
   date.setDate(date.getDate() + days);
-  return date.toISOString().split('T')[0];
+  
+  // Ritorna la data in formato YYYY-MM-DD usando il fuso orario locale
+  const resultYear = date.getFullYear();
+  const resultMonth = String(date.getMonth() + 1).padStart(2, '0');
+  const resultDay = String(date.getDate()).padStart(2, '0');
+  
+  return `${resultYear}-${resultMonth}-${resultDay}`;
 };
 
 // Helper per generare date ricorrenti settimanali per 1 anno

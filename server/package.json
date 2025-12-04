@@ -9,7 +9,8 @@
     "verify-db": "node verify-database.js",
     "change-password": "node change-postgres-password.js",
     "migrate-recurring": "node migrate-recurring-appointments.js",
-    "fix-recurring-flag": "node fix-recurring-flag.js"
+    "fix-recurring-flag": "node fix-recurring-flag.js",
+    "remove-recurrence": "node remove-recurrence-flag.js"
   },
   "dependencies": {
     "express": "^4.18.2",
