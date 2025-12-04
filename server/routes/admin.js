@@ -312,5 +312,70 @@ router.get('/debug-recurrences', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * Endpoint per trovare ricorrenze rimanenti
+ */
+router.get('/find-remaining-recurrences', authMiddleware, async (req, res) => {
+  try {
+    // Verifica che sia superadmin
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Accesso negato. Solo il superadmin può eseguire questa operazione.' });
+    }
+
+    // Trova tutti gli appuntamenti con ricorrenza (con flag)
+    const [appointmentsWithFlag] = await pool.query(
+      'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE (recurrence_group_id IS NOT NULL OR is_recurring = TRUE) ORDER BY client_name, date, start_time'
+    );
+
+    // Trova anche potenziali ricorrenze senza flag che potrebbero essere state perse
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 12); // Estendi a 12 mesi per essere sicuri
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    
+    const [potentialGroups] = await pool.query(
+      `SELECT client_name, start_time, service_type, COUNT(*) as count
+       FROM appointments
+       WHERE date >= ?
+       GROUP BY client_name, start_time, service_type
+       HAVING COUNT(*) >= 2
+       ORDER BY count DESC`,
+      [sixMonthsAgoStr]
+    );
+
+    // Per ogni potenziale gruppo, verifica se ci sono ancora 2+ appuntamenti
+    const remainingGroups = [];
+    for (const group of potentialGroups || []) {
+      const [groupAppointments] = await pool.query(
+        'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE client_name = ? AND start_time = ? AND service_type = ? ORDER BY date',
+        [group.client_name, group.start_time, group.service_type]
+      );
+      
+      if (Array.isArray(groupAppointments) && groupAppointments.length >= 2) {
+        remainingGroups.push({
+          client: group.client_name,
+          time: group.start_time,
+          service: group.service_type,
+          count: groupAppointments.length,
+          appointments: groupAppointments.slice(0, 10) // Mostra solo i primi 10
+        });
+      }
+    }
+
+    res.json({
+      withFlag: Array.isArray(appointmentsWithFlag) ? appointmentsWithFlag : [],
+      remainingGroups: remainingGroups,
+      totalWithFlag: Array.isArray(appointmentsWithFlag) ? appointmentsWithFlag.length : 0,
+      totalRemainingGroups: remainingGroups.length
+    });
+  } catch (error) {
+    console.error('❌ Errore:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Errore interno del server',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
 
