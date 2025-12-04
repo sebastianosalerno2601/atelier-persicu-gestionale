@@ -150,5 +150,52 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * Endpoint di debug per vedere gli appuntamenti con ricorrenza
+ */
+router.get('/debug-recurrences', authMiddleware, async (req, res) => {
+  try {
+    // Verifica che sia superadmin
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Accesso negato. Solo il superadmin può eseguire questa operazione.' });
+    }
+
+    // Trova tutti gli appuntamenti con ricorrenza
+    const [appointments] = await pool.query(
+      'SELECT id, client_name, date, start_time, recurrence_group_id, is_recurring FROM appointments WHERE (recurrence_group_id IS NOT NULL OR is_recurring = TRUE) ORDER BY date, start_time LIMIT 100'
+    );
+
+    // Trova anche tutti gli appuntamenti per vedere il totale
+    const [allAppointments] = await pool.query('SELECT COUNT(*) as total FROM appointments');
+    
+    // Raggruppa per recurrence_group_id
+    const groups = {};
+    if (Array.isArray(appointments)) {
+      appointments.forEach(apt => {
+        const groupId = apt.recurrence_group_id || 'NESSUN_GRUPPO';
+        if (!groups[groupId]) {
+          groups[groupId] = [];
+        }
+        groups[groupId].push(apt);
+      });
+    }
+
+    res.json({
+      totalAppointments: allAppointments[0]?.total || 0,
+      recurringAppointments: Array.isArray(appointments) ? appointments.length : 0,
+      groups: Object.keys(groups).length,
+      appointments: Array.isArray(appointments) ? appointments : [],
+      groupsDetail: groups
+    });
+  } catch (error) {
+    console.error('❌ Errore debug:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Errore interno del server',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
 
