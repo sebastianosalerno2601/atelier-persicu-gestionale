@@ -215,18 +215,28 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
             continue;
           }
           
-          // Verifica che i rimanenti siano settimanali
-          let isRecurring = true;
-          for (let i = 1; i < Math.min(deduplicatedApts.length, 10); i++) {
+          // Verifica che i rimanenti siano settimanali (più permissivo per serie lunghe)
+          let weeklyIntervals = 0;
+          let totalIntervals = 0;
+          
+          for (let i = 1; i < Math.min(deduplicatedApts.length, 15); i++) {
             const prevDate = new Date(deduplicatedApts[i - 1].date);
             const currDate = new Date(deduplicatedApts[i].date);
             const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+            totalIntervals++;
             
-            if (daysDiff < 5 || daysDiff > 9) {
-              isRecurring = false;
-              break;
+            // Intervalli settimanali sono tra 5-9 giorni
+            if (daysDiff >= 5 && daysDiff <= 9) {
+              weeklyIntervals++;
             }
           }
+          
+          // Accetta se almeno il 50% degli intervalli è settimanale (per serie lunghe)
+          // O se tutti gli intervalli sono settimanali (per serie corte)
+          const weeklyRatio = totalIntervals > 0 ? weeklyIntervals / totalIntervals : 0;
+          const isRecurring = deduplicatedApts.length <= 3 
+            ? weeklyIntervals === totalIntervals && totalIntervals > 0  // Serie corte: tutti settimanali
+            : weeklyRatio >= 0.5;  // Serie lunghe: almeno 50% settimanali
           
           if (!isRecurring) {
             // Non è una vera ricorrenza settimanale, salta
