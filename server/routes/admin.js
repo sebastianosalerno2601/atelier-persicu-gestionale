@@ -182,6 +182,9 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
           return a.id - b.id;
         });
         
+        // Variabile per gli appuntamenti da processare (può essere modificata per gruppi potential_)
+        let appointmentsToProcess = apts;
+        
         // Se è un gruppo "potential_", verifica che siano effettivamente ricorrenti settimanalmente
         // Prima rimuovi i duplicati nella stessa data (mantieni solo il primo per data)
         if (groupId.startsWith('potential_')) {
@@ -202,10 +205,9 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
             if (!uniqueDates[dateKey]) {
               uniqueDates[dateKey] = true;
               deduplicatedApts.push(apt);
-            } else {
-              // Duplicato nella stessa data - lo aggiungiamo agli altri da eliminare
-              // ma non lo consideriamo per la verifica della ricorrenza
             }
+            // I duplicati nella stessa data vengono ignorati nella deduplicazione
+            // ma verranno eliminati comunque perché sono in apts originale
           }
           
           // Se dopo la deduplicazione ci sono meno di 2 appuntamenti, salta
@@ -231,13 +233,14 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
             continue;
           }
           
-          // Usa gli appuntamenti deduplicati per trovare il primo
-          apts = deduplicatedApts;
+          // Per trovare il primo, usa gli appuntamenti deduplicati
+          // Ma per eliminare, usa tutti gli appuntamenti originali (inclusi duplicati)
+          appointmentsToProcess = deduplicatedApts;
         }
         
         // Il primo appuntamento (il più vecchio, dopo deduplicazione se necessario)
-        const firstAppointment = apts[0];
-        // Tutti gli altri appuntamenti (incluse eventuali duplicati nella stessa data del primo)
+        const firstAppointment = appointmentsToProcess[0];
+        // Tutti gli altri appuntamenti ORIGINALI da eliminare (inclusi duplicati)
         const otherAppointments = apts.filter(apt => {
           // Mantieni solo il primo, tutti gli altri vanno eliminati
           return apt.id !== firstAppointment.id;
