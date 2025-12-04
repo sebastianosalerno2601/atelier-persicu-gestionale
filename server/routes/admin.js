@@ -41,7 +41,7 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
        GROUP BY client_name, start_time, service_type
        HAVING COUNT(*) >= 2
        ORDER BY count DESC`,
-      [sixMonthsAgoStr]
+      [twoYearsAgoStr]
     );
     
     // Raccogli tutti gli appuntamenti da processare
@@ -51,7 +51,7 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
     for (const group of potentialGroups || []) {
       const [groupAppointments] = await pool.query(
         'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE client_name = ? AND start_time = ? AND service_type = ? AND date >= ? ORDER BY date, id',
-        [group.client_name, group.start_time, group.service_type, sixMonthsAgoStr]
+        [group.client_name, group.start_time, group.service_type, twoYearsAgoStr]
       );
       
       if (Array.isArray(groupAppointments) && groupAppointments.length >= 2) {
@@ -402,9 +402,10 @@ router.get('/find-remaining-recurrences', authMiddleware, async (req, res) => {
     );
 
     // Trova anche potenziali ricorrenze senza flag che potrebbero essere state perse
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 12); // Estendi a 12 mesi per essere sicuri
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    // Estendi a 2 anni per essere sicuri di prendere tutte le ricorrenze
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setMonth(twoYearsAgo.getMonth() - 24);
+    const twoYearsAgoStr = twoYearsAgo.toISOString().split('T')[0];
     
     const [potentialGroups] = await pool.query(
       `SELECT client_name, start_time, service_type, COUNT(*) as count
@@ -413,7 +414,7 @@ router.get('/find-remaining-recurrences', authMiddleware, async (req, res) => {
        GROUP BY client_name, start_time, service_type
        HAVING COUNT(*) >= 2
        ORDER BY count DESC`,
-      [sixMonthsAgoStr]
+      [twoYearsAgoStr]
     );
 
     // Per ogni potenziale gruppo, verifica se ci sono ancora 2+ appuntamenti
