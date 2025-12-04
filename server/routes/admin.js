@@ -24,12 +24,58 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
       errors: []
     };
 
-    // Trova tutti gli appuntamenti con ricorrenza
-    const [appointments] = await pool.query(
-      'SELECT id, client_name, date, start_time, recurrence_group_id, is_recurring FROM appointments WHERE (recurrence_group_id IS NOT NULL OR is_recurring = TRUE) ORDER BY date, start_time'
+    // Trova tutti gli appuntamenti con ricorrenza (con flag)
+    const [appointmentsWithFlag] = await pool.query(
+      'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE (recurrence_group_id IS NOT NULL OR is_recurring = TRUE) ORDER BY date, start_time'
     );
     
-    if (!Array.isArray(appointments) || appointments.length === 0) {
+    // Trova anche potenziali ricorrenze senza flag (stesso cliente, stesso orario, stesso servizio, 2+ appuntamenti)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    
+    const [potentialGroups] = await pool.query(
+      `SELECT client_name, start_time, service_type, COUNT(*) as count
+       FROM appointments
+       WHERE date >= ? AND (recurrence_group_id IS NULL AND is_recurring = FALSE)
+       GROUP BY client_name, start_time, service_type
+       HAVING COUNT(*) >= 2
+       ORDER BY count DESC`,
+      [sixMonthsAgoStr]
+    );
+    
+    // Raccogli tutti gli appuntamenti da processare
+    let allAppointments = Array.isArray(appointmentsWithFlag) ? appointmentsWithFlag : [];
+    
+    // Aggiungi appuntamenti potenzialmente ricorrenti senza flag
+    for (const group of potentialGroups || []) {
+      const [groupAppointments] = await pool.query(
+        'SELECT id, client_name, date, start_time, service_type, recurrence_group_id, is_recurring FROM appointments WHERE client_name = ? AND start_time = ? AND service_type = ? AND date >= ? ORDER BY date',
+        [group.client_name, group.start_time, group.service_type, sixMonthsAgoStr]
+      );
+      
+      if (Array.isArray(groupAppointments) && groupAppointments.length >= 2) {
+        // Verifica che siano effettivamente ricorrenti settimanalmente
+        let isRecurring = true;
+        for (let i = 1; i < Math.min(groupAppointments.length, 10); i++) {
+          const prevDate = new Date(groupAppointments[i - 1].date);
+          const currDate = new Date(groupAppointments[i].date);
+          const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+          
+          // Se la distanza non è 5-9 giorni, probabilmente non è una ricorrenza settimanale
+          if (daysDiff < 5 || daysDiff > 9) {
+            isRecurring = false;
+            break;
+          }
+        }
+        
+        if (isRecurring) {
+          allAppointments = allAppointments.concat(groupAppointments);
+        }
+      }
+    }
+    
+    if (allAppointments.length === 0) {
       return res.json({
         success: true,
         message: 'Nessun appuntamento con ricorrenza trovato.',
@@ -37,10 +83,18 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
       });
     }
     
-    // Raggruppa per recurrence_group_id
+    // Raggruppa per recurrence_group_id (se presente) o per client_name + start_time + service_type
     const groups = {};
-    appointments.forEach(apt => {
-      const groupId = apt.recurrence_group_id || `single_${apt.id}`;
+    allAppointments.forEach(apt => {
+      let groupId;
+      if (apt.recurrence_group_id) {
+        // Ha già un gruppo di ricorrenza
+        groupId = apt.recurrence_group_id;
+      } else {
+        // Crea un gruppo basato su cliente, orario e servizio
+        groupId = `potential_${apt.client_name}_${apt.start_time}_${apt.service_type}`;
+      }
+      
       if (!groups[groupId]) {
         groups[groupId] = [];
       }
@@ -56,24 +110,53 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
       if (apts.length === 0) continue;
       
       try {
-        // CONTROLLO AGGIUNTIVO: processa solo se è una vera serie ricorrente
-        const isRealRecurrenceGroup = groupId.startsWith('recur_') || groupId.startsWith('migrated_');
+        // CONTROLLO: processa solo se ha almeno 2 appuntamenti
         const hasMultipleAppointments = apts.length >= 2;
+        const isRealRecurrenceGroup = groupId.startsWith('recur_') || groupId.startsWith('migrated_') || groupId.startsWith('potential_');
         
-        if (!isRealRecurrenceGroup || !hasMultipleAppointments) {
-          // Appuntamento singolo con flag - rimuovi solo il flag
-          await pool.query(
-            'UPDATE appointments SET is_recurring = FALSE, recurrence_group_id = NULL WHERE id = ?',
-            [apts[0].id]
-          );
-          results.updated.push({
-            id: apts[0].id,
-            client: apts[0].client_name,
-            date: apts[0].date,
-            action: 'Flag rimosso (appuntamento singolo)'
-          });
-          updatedCount++;
+        if (!hasMultipleAppointments) {
+          // Appuntamento singolo con flag - rimuovi solo il flag se presente
+          if (apts[0].is_recurring || apts[0].recurrence_group_id) {
+            await pool.query(
+              'UPDATE appointments SET is_recurring = FALSE, recurrence_group_id = NULL WHERE id = ?',
+              [apts[0].id]
+            );
+            results.updated.push({
+              id: apts[0].id,
+              client: apts[0].client_name,
+              date: apts[0].date,
+              action: 'Flag rimosso (appuntamento singolo)'
+            });
+            updatedCount++;
+          }
           continue;
+        }
+        
+        // Se è un gruppo "potential_", verifica che siano effettivamente ricorrenti settimanalmente
+        if (groupId.startsWith('potential_')) {
+          let isRecurring = true;
+          apts.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return dateA - dateB;
+          });
+          
+          // Verifica i primi 10 appuntamenti per vedere se sono settimanali
+          for (let i = 1; i < Math.min(apts.length, 10); i++) {
+            const prevDate = new Date(apts[i - 1].date);
+            const currDate = new Date(apts[i].date);
+            const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff < 5 || daysDiff > 9) {
+              isRecurring = false;
+              break;
+            }
+          }
+          
+          if (!isRecurring) {
+            // Non è una vera ricorrenza settimanale, salta
+            continue;
+          }
         }
         
         // Ordina per data per trovare il primo
