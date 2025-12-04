@@ -11,6 +11,7 @@ const utilitiesRoutes = require('./routes/utilities');
 const productExpensesRoutes = require('./routes/productExpenses');
 const barExpensesRoutes = require('./routes/barExpenses');
 const maintenanceRoutes = require('./routes/maintenance');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -36,6 +37,7 @@ app.use('/api/utilities', utilitiesRoutes);
 app.use('/api/product-expenses', productExpensesRoutes);
 app.use('/api/bar-expenses', barExpensesRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve static files dalla cartella build di React
 if (process.env.NODE_ENV === 'production') {
