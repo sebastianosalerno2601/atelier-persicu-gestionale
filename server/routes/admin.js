@@ -30,9 +30,10 @@ router.post('/remove-recurrences', authMiddleware, async (req, res) => {
     );
     
     // Trova anche potenziali ricorrenze senza flag (stesso cliente, stesso orario, stesso servizio, 2+ appuntamenti)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0];
+    // Estendi a 2 anni per catturare tutte le ricorrenze
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setMonth(twoYearsAgo.getMonth() - 24);
+    const twoYearsAgoStr = twoYearsAgo.toISOString().split('T')[0];
     
     const [potentialGroups] = await pool.query(
       `SELECT client_name, start_time, service_type, COUNT(*) as count
