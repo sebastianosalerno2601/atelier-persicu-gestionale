@@ -210,9 +210,50 @@ const AllCalendar = () => {
     setIsModalOpen(true);
   };
 
-  const handleAppointmentClick = (appointment, e) => {
+  const handleAppointmentClick = async (appointment, e) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    // Se c'è già un appuntamento selezionato per lo spostamento, spostalo nello slot di questo appuntamento
+    if (selectedForMove && isMobile) {
+      // Se stiamo cercando di selezionare lo stesso appuntamento, non fare nulla
+      if (selectedForMove.id === appointment.id) {
+        return;
+      }
+      
+      // Altrimenti, sposta l'appuntamento selezionato nello slot di questo appuntamento
+      try {
+        const normalizedEmployeeId = typeof appointment.employeeId === 'string' ? parseInt(appointment.employeeId) : appointment.employeeId;
+        
+        // Normalizza la data originale
+        let originalDate = selectedForMove.date;
+        if (originalDate && typeof originalDate === 'string') {
+          originalDate = originalDate.split('T')[0];
+        }
+        
+        const updatedAppointment = {
+          ...selectedForMove,
+          employeeId: normalizedEmployeeId,
+          startTime: appointment.startTime,
+          endTime: calculateEndTime(appointment.startTime, selectedForMove.serviceType),
+          date: originalDate
+        };
+        
+        const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
+        await updateAppointment(selectedForMove.id, appointmentToUpdate);
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await loadAppointments();
+        
+        setSelectedForMove(null);
+      } catch (error) {
+        console.error('❌ Errore spostamento appuntamento:', error);
+        alert('Errore nello spostamento dell\'appuntamento: ' + error.message);
+        setSelectedForMove(null);
+      }
+      return;
+    }
+    
     // Se è mobile, seleziona per spostamento
     if (isMobile) {
       // Su mobile, resetta prima il drag state per sicurezza
@@ -605,7 +646,7 @@ const AllCalendar = () => {
                     return (
                       <td
                         key={employee.id}
-                        className={`appointment-cell ${dragOverCell === `${employee.id}-${timeSlot}` ? 'drag-over' : ''} ${selectedForMove && isMobile && slotAppointments.length === 0 ? 'can-drop-move' : ''}`}
+                        className={`appointment-cell ${dragOverCell === `${employee.id}-${timeSlot}` ? 'drag-over' : ''} ${selectedForMove && isMobile && slotAppointments.length === 0 ? 'can-drop-move' : ''} ${selectedForMove && isMobile && slotAppointments.length > 0 ? 'can-drop-move-occupied' : ''}`}
                         data-employee-id={employee.id}
                         data-time-slot={timeSlot}
                         style={{
@@ -629,7 +670,7 @@ const AllCalendar = () => {
                             <div
                               key={appointment.id}
                               data-appointment-id={appointment.id}
-                              className={`calendar-appointment ${draggedAppointment?.id === appointment.id ? 'dragging' : ''} ${selectedForMove?.id === appointment.id ? 'selected-for-move' : ''}`}
+                              className={`calendar-appointment ${draggedAppointment?.id === appointment.id ? 'dragging' : ''} ${selectedForMove?.id === appointment.id ? 'selected-for-move' : ''} ${selectedForMove && isMobile && selectedForMove.id !== appointment.id ? 'can-receive-move' : ''}`}
                               draggable={!isMobile}
                               onDragStart={!isMobile ? (e) => handleDragStart(appointment, e) : (e) => e.preventDefault()}
                               onDragEnd={!isMobile ? handleDragEnd : undefined}
@@ -663,7 +704,7 @@ const AllCalendar = () => {
                           {slotAppointments.length === 0 && (
                             <div className="empty-cell-hint">Clicca per aggiungere</div>
                           )}
-                          {slotAppointments.length > 0 && (
+                          {slotAppointments.length > 0 && !selectedForMove && (
                             <button
                               className="add-appointment-in-cell-btn"
                               onClick={(e) => {

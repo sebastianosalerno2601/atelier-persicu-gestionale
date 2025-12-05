@@ -145,6 +145,63 @@
   animation: dropMovePulse 1.5s ease-in-out infinite;
 }
 
+.appointment-cell.can-drop-move-occupied {
+  position: relative;
+}
+
+.appointment-cell.can-drop-move-occupied::after {
+  content: '📌 Clicca per spostare qui';
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  background: rgba(76, 175, 80, 0.9);
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  z-index: 100;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.calendar-appointment.can-receive-move {
+  border: 2px dashed rgba(76, 175, 80, 0.6) !important;
+  box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+  cursor: pointer !important;
+  position: relative;
+}
+
+.calendar-appointment.can-receive-move::before {
+  content: '📌 Clicca per spostare qui';
+  position: absolute;
+  top: -2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(76, 175, 80, 0.95);
+  color: white;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.calendar-appointment.can-receive-move:hover::before {
+  opacity: 1;
+}
+
+.calendar-appointment.can-receive-move:hover {
+  border-color: rgba(76, 175, 80, 1) !important;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.7);
+  background: rgba(76, 175, 80, 0.25) !important;
+  transform: scale(1.02);
+}
+
 @keyframes dropMovePulse {
   0%, 100% {
     border-color: rgba(76, 175, 80, 0.4);
@@ -495,6 +552,23 @@
   .calendar-appointment.selected-for-move {
     border-width: 3px;
     box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+  }
+
+  .appointment-cell.can-drop-move-occupied::after {
+    font-size: 0.55rem;
+    padding: 0.2rem 0.4rem;
+    top: 0.15rem;
+    left: 0.15rem;
+  }
+
+  .calendar-appointment.can-receive-move::before {
+    font-size: 0.55rem;
+    padding: 0.25rem 0.5rem;
+    top: -1.5rem;
+  }
+
+  .calendar-appointment.can-receive-move {
+    border-width: 2px !important;
   }
 }
 
