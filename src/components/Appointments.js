@@ -165,6 +165,24 @@ const Appointments = () => {
     return filtered;
   };
 
+  // Helper per convertire hex a rgb
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result 
+      ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
+      : '255, 255, 255';
+  };
+
+  // Funzione helper per ottenere il colore del dipendente
+  const getEmployeeColor = (employeeId) => {
+    const employee = employees.find(emp => {
+      const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id;
+      const aptEmployeeId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
+      return empId === aptEmployeeId;
+    });
+    return employee?.color || '#ffffff';
+  };
+
   const handleTimeSlotClick = (timeSlot) => {
     // Click sullo slot per creare nuovo appuntamento
     setSelectedTimeSlot(timeSlot);
@@ -744,11 +762,19 @@ const Appointments = () => {
                   >
                     <span className="time-label">{timeSlot}</span>
                     <div className="appointments-list">
-                      {appointmentsForSlot.map(appointment => (
+                      {appointmentsForSlot.map(appointment => {
+                        const employeeColor = getEmployeeColor(appointment.employeeId);
+                        const rgbColor = hexToRgb(employeeColor);
+                        
+                        return (
                           <div
                             key={appointment.id}
                             className="appointment-item"
                             onClick={(e) => handleAppointmentClick(appointment, e)}
+                            style={{
+                              backgroundColor: `rgba(${rgbColor}, 0.2)`,
+                              borderColor: `rgba(${rgbColor}, 0.4)`
+                            }}
                           >
                             <div className="appointment-info">
                               <div className="appointment-name">{appointment.clientName}</div>
@@ -761,7 +787,8 @@ const Appointments = () => {
                               </div>
                             </div>
                           </div>
-                      ))}
+                        );
+                      })}
                       {appointmentsForSlot.length === 0 && (
                         <div className="empty-slot-hint">Clicca per aggiungere appuntamento</div>
                       )}

@@ -59,9 +59,10 @@ const AllCalendar = () => {
   };
   
   const [selectedDate, setSelectedDate] = useState(getLocalDateString());
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [selectedAppointment, setSelectedAppointment] = useState(null); // Per modifica nel modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
+  const [selectedForMove, setSelectedForMove] = useState(null); // Appuntamento selezionato per spostamento
   const [draggedAppointment, setDraggedAppointment] = useState(null);
   const [selectedEmployeeForNew, setSelectedEmployeeForNew] = useState(null);
   const [dragOverCell, setDragOverCell] = useState(null);
@@ -69,11 +70,21 @@ const AllCalendar = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [touchElement, setTouchElement] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
   
   // Refs per accedere ai valori più recenti nei listener
   const touchStartPosRef = useRef(null);
   const draggedAppointmentRef = useRef(null);
   const isDraggingRef = useRef(false);
+  
+  // Rileva dimensioni schermo per mobile
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Funzione per convertire snake_case a camelCase per i dipendenti
   const employeeToCamelCase = (obj) => {
@@ -146,7 +157,53 @@ const AllCalendar = () => {
     return filtered;
   };
 
-  const handleSlotClick = (timeSlot, employeeId) => {
+  // Funzione helper per ottenere il colore del dipendente
+  const getEmployeeColor = (employeeId) => {
+    const employee = employees.find(emp => {
+      const empId = typeof emp.id === 'string' ? parseInt(emp.id) : emp.id;
+      const aptEmployeeId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
+      return empId === aptEmployeeId;
+    });
+    return employee?.color || '#ffffff';
+  };
+
+  const handleSlotClick = async (timeSlot, employeeId, e) => {
+    // Se c'è un appuntamento selezionato per lo spostamento, spostalo qui
+    if (selectedForMove) {
+      e?.stopPropagation();
+      try {
+        const normalizedEmployeeId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
+        
+        // Normalizza la data originale
+        let originalDate = selectedForMove.date;
+        if (originalDate && typeof originalDate === 'string') {
+          originalDate = originalDate.split('T')[0];
+        }
+        
+        const updatedAppointment = {
+          ...selectedForMove,
+          employeeId: normalizedEmployeeId,
+          startTime: timeSlot,
+          endTime: calculateEndTime(timeSlot, selectedForMove.serviceType),
+          date: originalDate
+        };
+        
+        const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
+        await updateAppointment(selectedForMove.id, appointmentToUpdate);
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await loadAppointments();
+        
+        setSelectedForMove(null);
+      } catch (error) {
+        console.error('❌ Errore spostamento appuntamento:', error);
+        alert('Errore nello spostamento dell\'appuntamento: ' + error.message);
+        setSelectedForMove(null);
+      }
+      return;
+    }
+    
+    // Altrimenti, apri modal per nuovo appuntamento
     setSelectedTimeSlot(timeSlot);
     setSelectedAppointment(null);
     setSelectedEmployeeForNew(employeeId);
@@ -155,12 +212,34 @@ const AllCalendar = () => {
 
   const handleAppointmentClick = (appointment, e) => {
     e.stopPropagation();
+    e.preventDefault();
+    // Se è mobile, seleziona per spostamento
+    if (isMobile) {
+      // Su mobile, resetta prima il drag state per sicurezza
+      setDraggedAppointment(null);
+      setIsDragging(false);
+      setSelectedForMove(appointment);
+    } else {
+      // Su desktop, apri modal (comportamento originale)
+      setSelectedAppointment(appointment);
+      setSelectedTimeSlot(appointment.startTime);
+      setIsModalOpen(true);
+    }
+  };
+  
+  const handleEditClick = (appointment, e) => {
+    e.stopPropagation();
     setSelectedAppointment(appointment);
     setSelectedTimeSlot(appointment.startTime);
     setIsModalOpen(true);
   };
 
   const handleDragStart = (appointment, e) => {
+    // Previeni drag su mobile
+    if (isMobile) {
+      e.preventDefault();
+      return;
+    }
     e.stopPropagation();
     setDraggedAppointment(appointment);
     if (e.dataTransfer) {
@@ -448,27 +527,48 @@ const AllCalendar = () => {
     }
   };
 
-  // Aggiungi listener globali per touch events
+  // Aggiungi listener globali per touch events SOLO su desktop (per drag & drop)
+  // Su mobile non servono perché usiamo selezione + click
   useEffect(() => {
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd);
+    if (!isMobile) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
 
-    return () => {
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [handleTouchMove, handleTouchEnd]); // useCallback garantisce stabilità delle funzioni
+      return () => {
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+    // Su mobile non registriamo listener, quindi ritorniamo una funzione vuota
+    return () => {};
+  }, [handleTouchMove, handleTouchEnd, isMobile]);
 
   return (
     <div className="all-calendar-container fade-in">
       <div className="all-calendar-header">
         <h2 className="section-title">All Calendar</h2>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="date-picker"
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          {selectedForMove && isMobile && (
+            <div className="move-selection-indicator">
+              <span>📌 Appuntamento selezionato. Clicca su uno slot per spostarlo.</span>
+              <button 
+                onClick={() => setSelectedForMove(null)}
+                className="cancel-move-btn"
+              >
+                ✕ Annulla
+              </button>
+            </div>
+          )}
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => {
+              setSelectedDate(e.target.value);
+              setSelectedForMove(null); // Reset selezione quando cambi data
+            }}
+            className="date-picker"
+          />
+        </div>
       </div>
 
       {employees.length === 0 ? (
@@ -505,7 +605,7 @@ const AllCalendar = () => {
                     return (
                       <td
                         key={employee.id}
-                        className={`appointment-cell ${dragOverCell === `${employee.id}-${timeSlot}` ? 'drag-over' : ''}`}
+                        className={`appointment-cell ${dragOverCell === `${employee.id}-${timeSlot}` ? 'drag-over' : ''} ${selectedForMove && isMobile && slotAppointments.length === 0 ? 'can-drop-move' : ''}`}
                         data-employee-id={employee.id}
                         data-time-slot={timeSlot}
                         style={{
@@ -513,33 +613,42 @@ const AllCalendar = () => {
                             ? `rgba(${hexToRgb(employee.color)}, 0.1)` 
                             : undefined
                         }}
-                        onDragOver={(e) => handleDragOver(employee.id, timeSlot, e)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(employee.id, timeSlot, e)}
-                        onClick={() => {
-                          // Su mobile, evita il click se era un drag
-                          if (!isDragging) {
-                            handleSlotClick(timeSlot, employee.id);
-                          }
+                        onDragOver={!isMobile ? (e) => handleDragOver(employee.id, timeSlot, e) : undefined}
+                        onDragLeave={!isMobile ? handleDragLeave : undefined}
+                        onDrop={!isMobile ? (e) => handleDrop(employee.id, timeSlot, e) : undefined}
+                        onClick={(e) => {
+                          handleSlotClick(timeSlot, employee.id, e);
                         }}
                       >
                         <div className="appointments-in-cell">
-                          {slotAppointments.map(appointment => (
+                          {slotAppointments.map(appointment => {
+                            const employeeColor = getEmployeeColor(appointment.employeeId);
+                            const rgbColor = hexToRgb(employeeColor);
+                            
+                            return (
                             <div
                               key={appointment.id}
                               data-appointment-id={appointment.id}
-                              className={`calendar-appointment ${draggedAppointment?.id === appointment.id ? 'dragging' : ''}`}
-                              draggable
-                              onDragStart={(e) => handleDragStart(appointment, e)}
-                              onDragEnd={handleDragEnd}
-                              onTouchStart={(e) => handleTouchStart(appointment, e)}
+                              className={`calendar-appointment ${draggedAppointment?.id === appointment.id ? 'dragging' : ''} ${selectedForMove?.id === appointment.id ? 'selected-for-move' : ''}`}
+                              draggable={!isMobile}
+                              onDragStart={!isMobile ? (e) => handleDragStart(appointment, e) : (e) => e.preventDefault()}
+                              onDragEnd={!isMobile ? handleDragEnd : undefined}
+                              onDrag={(e) => { if (isMobile) e.preventDefault(); }}
                               onClick={(e) => {
-                                // Su mobile, evita il click se era un drag
-                                if (!isDragging) {
-                                  handleAppointmentClick(appointment, e);
-                                }
+                                handleAppointmentClick(appointment, e);
+                              }}
+                              style={{
+                                backgroundColor: `rgba(${rgbColor}, 0.2)`,
+                                borderColor: `rgba(${rgbColor}, 0.4)`
                               }}
                             >
+                              <button
+                                className="appointment-edit-btn"
+                                onClick={(e) => handleEditClick(appointment, e)}
+                                title="Modifica appuntamento"
+                              >
+                                ✏️
+                              </button>
                               <div className="calendar-appointment-name">{appointment.clientName}</div>
                               <div className="calendar-appointment-service">{appointment.serviceType}</div>
                               <div className="calendar-appointment-time">
@@ -549,7 +658,8 @@ const AllCalendar = () => {
                                 {appointment.paymentMethod === 'da-pagare' ? 'DA PAGARE' : appointment.paymentMethod.charAt(0).toUpperCase() + appointment.paymentMethod.slice(1)}
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                           {slotAppointments.length === 0 && (
                             <div className="empty-cell-hint">Clicca per aggiungere</div>
                           )}
@@ -587,6 +697,7 @@ const AllCalendar = () => {
             setSelectedAppointment(null);
             setSelectedTimeSlot(null);
             setSelectedEmployeeForNew(null);
+            setSelectedForMove(null); // Reset selezione quando chiudi modal
           }}
         />
       )}
