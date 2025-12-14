@@ -66,80 +66,135 @@
 }
 
 .maintenance-item {
-  padding: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   transition: all 0.3s ease;
+  gap: 1.5rem;
 }
 
 .maintenance-item:hover {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  transform: translateX(5px);
 }
 
-.maintenance-header-item {
+.maintenance-left {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .maintenance-label {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 600;
   color: #ffffff;
 }
 
-.maintenance-price-display {
+.maintenance-total-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.maintenance-total-display {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
-.price-label {
-  font-size: 0.95rem;
+.total-label-small {
+  font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.7);
   font-weight: 500;
 }
 
-.price-value {
-  font-size: 1.2rem;
+.total-value {
+  font-size: 1.1rem;
   font-weight: 700;
   color: #ffffff;
 }
 
-.maintenance-inputs {
+.toggle-details-btn {
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.maintenance-price-container,
-.maintenance-notes-container {
-  display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
-}
-
-.input-label {
-  font-size: 1rem;
-  font-weight: 500;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
   color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.price-input-container {
+.toggle-details-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.maintenance-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.price-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.remove-price-btn {
+  background: rgba(255, 77, 77, 0.2);
+  border: 1px solid rgba(255, 77, 77, 0.3);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff6b6b;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.remove-price-btn:hover {
+  background: rgba(255, 77, 77, 0.3);
+  border-color: rgba(255, 77, 77, 0.5);
+  transform: scale(1.1);
+}
+
+.maintenance-input-container {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   position: relative;
+  min-width: 200px;
 }
 
 .maintenance-price-input {
@@ -153,6 +208,7 @@
   font-weight: 500;
   text-align: right;
   transition: all 0.3s ease;
+  min-width: 150px;
 }
 
 .maintenance-price-input:focus {
@@ -166,11 +222,16 @@
   color: rgba(255, 255, 255, 0.4);
 }
 
-.currency-symbol {
+.maintenance-currency {
   font-size: 1.2rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.8);
   min-width: 20px;
+}
+
+.maintenance-notes-container {
+  margin-top: 1rem;
+  width: 100%;
 }
 
 .maintenance-notes-input {
@@ -291,24 +352,26 @@
     padding: 1.5rem;
   }
 
-  .maintenance-header-item {
+  .maintenance-item {
     flex-direction: column;
-    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .maintenance-left {
+    width: 100%;
   }
 
   .maintenance-label {
     font-size: 1.1rem;
-    width: 100%;
-    text-align: center;
   }
 
-  .maintenance-price-display {
+  .maintenance-input-container {
     width: 100%;
-    justify-content: center;
+    min-width: unset;
   }
 
-  .price-input-container {
-    width: 100%;
+  .maintenance-price-input {
+    min-width: unset;
   }
 
   .total-amount {

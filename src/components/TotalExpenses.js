@@ -57,10 +57,22 @@ const TotalExpenses = () => {
       });
       setBarExpensesTotal(barTotal);
 
-      // Calcola totale manutenzioni
-      const maintenanceSum = 
-        (parseFloat(maintenance.ordinaria?.price) || 0) +
-        (parseFloat(maintenance.straordinaria?.price) || 0);
+      // Calcola totale manutenzioni (nuova struttura con array di spese)
+      let maintenanceSum = 0;
+      if (maintenance && typeof maintenance === 'object') {
+        // Gestisce sia la nuova struttura (array di spese) che la vecchia (price singolo)
+        Object.values(maintenance).forEach(expenses => {
+          if (Array.isArray(expenses)) {
+            // Nuova struttura: array di { id, price }
+            expenses.forEach(exp => {
+              maintenanceSum += parseFloat(exp.price) || 0;
+            });
+          } else if (expenses && typeof expenses === 'object' && expenses.price) {
+            // Vecchia struttura: { price, notes }
+            maintenanceSum += parseFloat(expenses.price) || 0;
+          }
+        });
+      }
       setMaintenanceTotal(maintenanceSum);
 
       // Calcola totale spese prodotti

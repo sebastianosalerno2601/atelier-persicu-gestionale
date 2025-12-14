@@ -1,18 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { getMaintenance, saveMaintenance as saveMaintenanceAPI } from '../utils/api';
+import { getMaintenance, addMaintenanceExpense, deleteMaintenanceExpense, getMaintenanceNotes, saveMaintenanceNotes } from '../utils/api';
 import './Maintenance.css';
+
+const maintenanceTypes = {
+  ordinaria: 'Manutenzioni ordinarie',
+  straordinaria: 'Manutenzione straordinaria'
+};
 
 const Maintenance = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [maintenance, setMaintenance] = useState({
-    ordinaria: {
-      price: '',
-      notes: ''
-    },
-    straordinaria: {
-      price: '',
-      notes: ''
-    }
+  // Array di spese per tipo: { id, price }
+  const [expenses, setExpenses] = useState({
+    ordinaria: [],
+    straordinaria: []
+  });
+
+  const [tempInputs, setTempInputs] = useState({
+    ordinaria: '',
+    straordinaria: ''
+  });
+
+  const [showDetails, setShowDetails] = useState({});
+  const [showNotes, setShowNotes] = useState({});
+  const [notes, setNotes] = useState({
+    ordinaria: '',
+    straordinaria: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -32,77 +44,104 @@ const Maintenance = () => {
       const monthKey = getMonthKey(currentMonth);
       const data = await getMaintenance(monthKey);
       
-      if (data) {
-        setMaintenance({
-          ordinaria: {
-            price: data.ordinaria?.price || '',
-            notes: data.ordinaria?.notes || ''
-          },
-          straordinaria: {
-            price: data.straordinaria?.price || '',
-            notes: data.straordinaria?.notes || ''
-          }
+      // Il backend restituisce { expenses: { ordinaria: [...], straordinaria: [...] }, notes: {...} }
+      const converted = {
+        ordinaria: [],
+        straordinaria: []
+      };
+      
+      // Gestisce sia la nuova struttura (data.expenses) che la vecchia (data diretto) per retrocompatibilità
+      const expensesData = data.expenses || data;
+      
+      Object.keys(maintenanceTypes).forEach(key => {
+        if (expensesData[key] && Array.isArray(expensesData[key])) {
+          converted[key] = expensesData[key].map(expense => ({
+            id: expense.id,
+            price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price)
+          }));
+        }
+      });
+      
+      setExpenses(converted);
+      
+      // Carica le note
+      if (data && data.notes) {
+        setNotes({
+          ordinaria: data.notes.ordinaria || '',
+          straordinaria: data.notes.straordinaria || ''
         });
       } else {
-        setMaintenance({
-          ordinaria: { price: '', notes: '' },
-          straordinaria: { price: '', notes: '' }
-        });
+        try {
+          const notesData = await getMaintenanceNotes(monthKey);
+          setNotes(notesData || { ordinaria: '', straordinaria: '' });
+        } catch (error) {
+          console.error('Errore caricamento note:', error);
+          setNotes({ ordinaria: '', straordinaria: '' });
+        }
       }
     } catch (error) {
       console.error('Errore caricamento manutenzioni:', error);
-      // Inizializza con valori vuoti se non esistono
-      setMaintenance({
-        ordinaria: { price: '', notes: '' },
-        straordinaria: { price: '', notes: '' }
+      setExpenses({
+        ordinaria: [],
+        straordinaria: []
       });
+      setNotes({ ordinaria: '', straordinaria: '' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePriceChange = async (type, value) => {
-    const newMaintenance = {
-      ...maintenance,
-      [type]: {
-        ...maintenance[type],
-        price: value
+  const handleInputChange = (key, value) => {
+    setTempInputs({
+      ...tempInputs,
+      [key]: value
+    });
+  };
+
+  const handleInputBlur = async (key) => {
+    const value = parseFloat(tempInputs[key]);
+    if (!isNaN(value) && value > 0) {
+      try {
+        const monthKey = getMonthKey(currentMonth);
+        await addMaintenanceExpense(monthKey, key, value);
+        
+        // Ricarica le spese per ottenere l'ID reale
+        await loadMaintenance();
+        
+        setTempInputs({
+          ...tempInputs,
+          [key]: ''
+        });
+      } catch (error) {
+        console.error('Errore aggiunta spesa manutenzione:', error);
+        alert('Errore nell\'aggiunta della spesa: ' + error.message);
       }
-    };
-    setMaintenance(newMaintenance);
-    
-    try {
-      const monthKey = getMonthKey(currentMonth);
-      const priceValue = parseFloat(value) || 0;
-      await saveMaintenanceAPI(monthKey, type, priceValue, newMaintenance[type].notes);
-    } catch (error) {
-      console.error('Errore salvataggio manutenzione:', error);
-      alert('Errore nel salvataggio della manutenzione: ' + error.message);
-      // Ripristina lo stato precedente in caso di errore
-      loadMaintenance();
     }
   };
 
-  const handleNotesChange = async (type, value) => {
-    const newMaintenance = {
-      ...maintenance,
-      [type]: {
-        ...maintenance[type],
-        notes: value
-      }
-    };
-    setMaintenance(newMaintenance);
-    
+  const handleInputKeyPress = (key, e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleInputBlur(key);
+    }
+  };
+
+  const handleRemovePrice = async (key, expenseId) => {
     try {
       const monthKey = getMonthKey(currentMonth);
-      const priceValue = parseFloat(newMaintenance[type].price) || 0;
-      await saveMaintenanceAPI(monthKey, type, priceValue, value);
+      await deleteMaintenanceExpense(monthKey, expenseId);
+      await loadMaintenance();
     } catch (error) {
-      console.error('Errore salvataggio manutenzione:', error);
-      alert('Errore nel salvataggio della manutenzione: ' + error.message);
-      // Ripristina lo stato precedente in caso di errore
-      loadMaintenance();
+      console.error('Errore rimozione spesa manutenzione:', error);
+      alert('Errore nella rimozione della spesa: ' + error.message);
     }
+  };
+
+  const getTotalForType = (key) => {
+    return expenses[key].reduce((sum, expense) => {
+      const price = typeof expense === 'number' ? expense : expense.price;
+      return sum + price;
+    }, 0);
   };
 
   const handlePreviousMonth = () => {
@@ -123,9 +162,9 @@ const Maintenance = () => {
   };
 
   const calculateTotal = () => {
-    const ordinaria = parseFloat(maintenance.ordinaria.price) || 0;
-    const straordinaria = parseFloat(maintenance.straordinaria.price) || 0;
-    return ordinaria + straordinaria;
+    return Object.keys(maintenanceTypes).reduce((sum, key) => {
+      return sum + getTotalForType(key);
+    }, 0);
   };
 
   const monthNames = [
@@ -133,9 +172,35 @@ const Maintenance = () => {
     'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
   ];
 
-  const maintenanceTypes = {
-    ordinaria: 'Manutenzioni ordinarie',
-    straordinaria: 'Manutenzione straordinaria'
+  const toggleShowDetails = (key) => {
+    setShowDetails({
+      ...showDetails,
+      [key]: !showDetails[key]
+    });
+  };
+
+  const toggleShowNotes = (type) => {
+    setShowNotes({
+      ...showNotes,
+      [type]: !showNotes[type]
+    });
+  };
+
+  const handleNotesChange = async (type, value) => {
+    const newNotes = {
+      ...notes,
+      [type]: value
+    };
+    setNotes(newNotes);
+    
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      await saveMaintenanceNotes(monthKey, type, value);
+    } catch (error) {
+      console.error('Errore salvataggio note:', error);
+      alert('Errore nel salvataggio delle note: ' + error.message);
+      loadMaintenance();
+    }
   };
 
   return (
@@ -167,48 +232,87 @@ const Maintenance = () => {
         </div>
 
         <div className="maintenance-list">
-          {Object.keys(maintenanceTypes).map((type) => (
-            <div key={type} className="maintenance-item">
-              <div className="maintenance-header-item">
-                <label className="maintenance-label">{maintenanceTypes[type]}</label>
-                {maintenance[type].price && parseFloat(maintenance[type].price) > 0 && (
-                  <div className="maintenance-price-display">
-                    <span className="price-label">Prezzo:</span>
-                    <span className="price-value">{parseFloat(maintenance[type].price).toFixed(2)} €</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="maintenance-inputs">
-                <div className="maintenance-price-container">
-                  <label className="input-label">Prezzo (€)</label>
-                  <div className="price-input-container">
-                    <input
-                      type="number"
-                      className="maintenance-price-input"
-                      value={maintenance[type].price}
-                      onChange={(e) => handlePriceChange(type, e.target.value)}
-                      placeholder="0.00"
-                      min="0"
-                      step="0.01"
-                    />
-                    <span className="currency-symbol">€</span>
-                  </div>
+          {Object.keys(maintenanceTypes).map((type) => {
+            const total = getTotalForType(type);
+            return (
+              <div key={type} className="maintenance-item">
+                <div className="maintenance-left">
+                  <label className="maintenance-label">{maintenanceTypes[type]}</label>
+                  {total > 0 && (
+                    <div className="maintenance-total-row">
+                      <div className="maintenance-total-display">
+                        <span className="total-label-small">Totale:</span>
+                        <span className="total-value">{total.toFixed(2)} €</span>
+                      </div>
+                      {expenses[type].length > 0 && (
+                        <button
+                          type="button"
+                          className="toggle-details-btn"
+                          onClick={() => toggleShowDetails(type)}
+                          aria-label={showDetails[type] ? 'Nascondi riepilogo' : 'Mostra riepilogo'}
+                        >
+                          <span>{showDetails[type] ? '▼' : '▶'}</span>
+                          <span>{showDetails[type] ? 'Nascondi riepilogo' : 'Mostra riepilogo'}</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="toggle-details-btn"
+                        onClick={() => toggleShowNotes(type)}
+                        aria-label={showNotes[type] ? 'Nascondi note' : 'Mostra note'}
+                      >
+                        <span>{showNotes[type] ? '▼' : '▶'}</span>
+                        <span>{showNotes[type] ? 'Nascondi note' : 'Mostra note'}</span>
+                      </button>
+                    </div>
+                  )}
+                  {showDetails[type] && expenses[type].length > 0 && (
+                    <div className="maintenance-prices">
+                      {expenses[type].map((expense) => (
+                        <div key={expense.id} className="price-chip">
+                          <span>{expense.price.toFixed(2)} €</span>
+                          <button
+                            type="button"
+                            className="remove-price-btn"
+                            onClick={() => handleRemovePrice(type, expense.id)}
+                            aria-label="Rimuovi prezzo"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showNotes[type] && (
+                    <div className="maintenance-notes-container">
+                      <textarea
+                        className="maintenance-notes-input"
+                        value={notes[type]}
+                        onChange={(e) => handleNotesChange(type, e.target.value)}
+                        onBlur={() => handleNotesChange(type, notes[type])}
+                        placeholder="Inserisci note..."
+                        rows="4"
+                      />
+                    </div>
+                  )}
                 </div>
-
-                <div className="maintenance-notes-container">
-                  <label className="input-label">Note</label>
-                  <textarea
-                    className="maintenance-notes-input"
-                    value={maintenance[type].notes}
-                    onChange={(e) => handleNotesChange(type, e.target.value)}
-                    placeholder="Inserisci note..."
-                    rows="4"
+                <div className="maintenance-input-container">
+                  <input
+                    type="number"
+                    className="maintenance-price-input"
+                    value={tempInputs[type]}
+                    onChange={(e) => handleInputChange(type, e.target.value)}
+                    onBlur={() => handleInputBlur(type)}
+                    onKeyPress={(e) => handleInputKeyPress(type, e)}
+                    placeholder="Inserisci prezzo"
+                    min="0"
+                    step="0.01"
                   />
+                  <span className="maintenance-currency">€</span>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="maintenance-total">
@@ -223,4 +327,3 @@ const Maintenance = () => {
 };
 
 export default Maintenance;
-
