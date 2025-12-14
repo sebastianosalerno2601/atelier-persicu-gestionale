@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getDurationMinutes, addMinutes } from '../utils/storage';
 import './AppointmentModal.css';
 
-const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onClose }) => {
+const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onClose, isLoading = false }) => {
   const isEditing = !!appointment;
   
   const [clientName, setClientName] = useState(appointment?.clientName || '');
@@ -42,6 +42,8 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (isLoading) return; // Previeni submit multipli
+    
     if (!clientName.trim()) {
       alert('Inserisci il nome del cliente');
       return;
@@ -236,8 +238,9 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
               <button
                 type="button"
                 className="btn-delete"
+                disabled={isLoading}
                 onClick={() => {
-                  if (window.confirm('Sei sicuro di voler eliminare questo appuntamento?')) {
+                  if (!isLoading && window.confirm('Sei sicuro di voler eliminare questo appuntamento?')) {
                     onDelete(appointment.id);
                   }
                 }}
@@ -246,11 +249,27 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
               </button>
             )}
             <div className="action-buttons">
-              <button type="button" className="btn-cancel" onClick={onClose}>
+              <button 
+                type="button" 
+                className="btn-cancel" 
+                onClick={onClose}
+                disabled={isLoading}
+              >
                 Annulla
               </button>
-              <button type="submit" className="btn-save">
-                {isEditing ? 'Salva modifiche' : 'Salva'}
+              <button 
+                type="submit" 
+                className="btn-save"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="loading-spinner"></span>
+                    {isRecurring && !isEditing ? 'Creazione ricorrenze...' : 'Salvataggio...'}
+                  </span>
+                ) : (
+                  isEditing ? 'Salva modifiche' : 'Salva'
+                )}
               </button>
             </div>
           </div>

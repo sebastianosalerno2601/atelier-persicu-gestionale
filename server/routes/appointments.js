@@ -48,6 +48,16 @@ router.post('/', authMiddleware, async (req, res) => {
       normalizedDate = normalizedDate.split('T')[0]; // Rimuove eventuali timestamp
     }
     
+    // Controllo duplicati: verifica se esiste già un appuntamento identico
+    const [existing] = await pool.query(
+      'SELECT id FROM appointments WHERE employee_id = ? AND date = ? AND start_time = ? AND client_name = ? AND service_type = ?',
+      [employeeId, normalizedDate, startTime, clientName, serviceType]
+    );
+    
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ error: 'Appuntamento duplicato: esiste già un appuntamento identico per questo dipendente, data, ora e cliente' });
+    }
+    
     const [result] = await pool.query(
       'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold, recurrence_group_id, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
       [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod || 'da-pagare', productSold || null, recurrenceGroupId || null, isRecurring || false]
@@ -58,6 +68,109 @@ router.post('/', authMiddleware, async (req, res) => {
     res.json({ id: newId, ...req.body });
   } catch (error) {
     console.error('❌ Errore creazione appuntamento:', error);
+    // Se è un errore di duplicato PostgreSQL, ritorna un messaggio più chiaro
+    if (error.code === '23505' || error.message.includes('duplicate')) {
+      return res.status(409).json({ error: 'Appuntamento duplicato: esiste già un appuntamento identico' });
+    }
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
+// Crea ricorrenze in batch (transazione unica per migliori performance)
+router.post('/batch', authMiddleware, async (req, res) => {
+  // Ottieni un client dal pool per la transazione
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const { appointments } = req.body; // Array di appuntamenti da creare
+    const recurrenceGroupId = req.body.recurrenceGroupId || `recur_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    if (!Array.isArray(appointments) || appointments.length === 0) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(400).json({ error: 'Devi fornire un array di appuntamenti' });
+    }
+    
+    const createdIds = [];
+    
+    // Helper per convertire ? placeholders a $1, $2, $3 per PostgreSQL
+    const convertQuery = (text, params) => {
+      if (!params || params.length === 0) return { text, params: [] };
+      let paramIndex = 1;
+      const pgText = text.replace(/\?/g, () => `$${paramIndex++}`);
+      return { text: pgText, params };
+    };
+    
+    // Controlla duplicati prima di inserire
+    for (const apt of appointments) {
+      let normalizedDate = apt.date;
+      if (normalizedDate && typeof normalizedDate === 'string') {
+        normalizedDate = normalizedDate.split('T')[0];
+      }
+      
+      const queryParams = [apt.employeeId, normalizedDate, apt.startTime, apt.clientName, apt.serviceType];
+      const { text: pgText, params } = convertQuery(
+        'SELECT id FROM appointments WHERE employee_id = ? AND date = ? AND start_time = ? AND client_name = ? AND service_type = ?',
+        queryParams
+      );
+      
+      const result = await client.query(pgText, params);
+      
+      if (result.rows && result.rows.length > 0) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(409).json({ 
+          error: `Appuntamento duplicato: esiste già un appuntamento identico per ${apt.clientName} il ${normalizedDate} alle ${apt.startTime}` 
+        });
+      }
+    }
+    
+    // Inserisci tutti gli appuntamenti
+    for (const apt of appointments) {
+      let normalizedDate = apt.date;
+      if (normalizedDate && typeof normalizedDate === 'string') {
+        normalizedDate = normalizedDate.split('T')[0];
+      }
+      
+      const queryParams = [
+        apt.employeeId,
+        normalizedDate,
+        apt.startTime,
+        apt.endTime,
+        apt.clientName,
+        apt.serviceType,
+        apt.paymentMethod || 'da-pagare',
+        apt.productSold || null,
+        recurrenceGroupId,
+        true
+      ];
+      
+      const { text: pgText, params } = convertQuery(
+        'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold, recurrence_group_id, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+        queryParams
+      );
+      
+      const result = await client.query(pgText, params);
+      createdIds.push(result.rows[0]?.id);
+    }
+    
+    await client.query('COMMIT');
+    client.release();
+    
+    res.json({ 
+      message: `Creati ${createdIds.length} appuntamenti ricorrenti`,
+      ids: createdIds,
+      recurrenceGroupId: recurrenceGroupId
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {}); // Ignora errori di rollback
+    client.release();
+    console.error('❌ Errore creazione batch appuntamenti:', error);
+    if (error.code === '23505' || error.message.includes('duplicate')) {
+      return res.status(409).json({ error: 'Appuntamento duplicato: uno o più appuntamenti esistono già' });
+    }
     res.status(500).json({ error: 'Errore interno del server' });
   }
 });
