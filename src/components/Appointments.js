@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, updateAppointment, deleteAppointment } from '../utils/api';
+import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
 import { getPrice, generateWeeklyRecurrences, addDays } from '../utils/storage';
 import AppointmentModal from './AppointmentModal';
 import './Appointments.css';
@@ -72,6 +72,7 @@ const Appointments = () => {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [isUnpaidModalOpen, setIsUnpaidModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [auth, setAuth] = useState(null);
 
   // Funzione per convertire snake_case a camelCase per i dipendenti
@@ -199,6 +200,9 @@ const Appointments = () => {
   };
 
   const handleSaveAppointment = async (appointmentData) => {
+    if (isSaving) return; // Previeni chiamate multiple
+    
+    setIsSaving(true);
     try {
       if (selectedAppointment) {
         // Modifica appuntamento esistente
@@ -220,25 +224,25 @@ const Appointments = () => {
       } else {
         // Nuovo appuntamento
         if (appointmentData.isRecurring) {
-          // Crea ricorrenze settimanali per 1 anno
+          // Crea ricorrenze settimanali per 1 anno usando batch endpoint (molto più veloce!)
           const recurringDates = generateWeeklyRecurrences(selectedDate, 52);
           
           // Genera un ID univoco per il gruppo di ricorrenza
           const recurrenceGroupId = `recur_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           
-          // Crea tutti gli appuntamenti ricorrenti
-          for (const date of recurringDates) {
-            const newAppointment = {
-              ...appointmentToSnakeCase({
-                ...appointmentData,
-                date: date,
-                employeeId: selectedEmployee,
-                recurrenceGroupId: recurrenceGroupId,
-                isRecurring: true
-              })
-            };
-            await createAppointment(newAppointment);
-          }
+          // Prepara tutti gli appuntamenti da creare
+          const appointmentsToCreate = recurringDates.map(date => 
+            appointmentToSnakeCase({
+              ...appointmentData,
+              date: date,
+              employeeId: selectedEmployee,
+              recurrenceGroupId: recurrenceGroupId,
+              isRecurring: true
+            })
+          );
+          
+          // Crea tutti gli appuntamenti in una singola transazione (molto più veloce!)
+          await createAppointmentsBatch(appointmentsToCreate, recurrenceGroupId);
         } else {
           // Singolo appuntamento
           const newAppointment = {
@@ -258,7 +262,14 @@ const Appointments = () => {
       setSelectedTimeSlot(null);
     } catch (error) {
       console.error('Errore salvataggio appuntamento:', error);
-      alert('Errore nel salvataggio dell\'appuntamento: ' + error.message);
+      // Gestisci errore duplicato in modo user-friendly
+      if (error.message && error.message.includes('duplicato')) {
+        alert('⚠️ ' + error.message);
+      } else {
+        alert('Errore nel salvataggio dell\'appuntamento: ' + error.message);
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -820,10 +831,13 @@ const Appointments = () => {
           onSave={handleSaveAppointment}
           onDelete={handleDeleteAppointment}
           onClose={() => {
-            setIsModalOpen(false);
-            setSelectedAppointment(null);
-            setSelectedTimeSlot(null);
+            if (!isSaving) {
+              setIsModalOpen(false);
+              setSelectedAppointment(null);
+              setSelectedTimeSlot(null);
+            }
           }}
+          isLoading={isSaving}
         />
       )}
 

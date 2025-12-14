@@ -229,7 +229,7 @@ const initDatabase = async () => {
     
     await client.query(`CREATE INDEX IF NOT EXISTS idx_bar_expenses_month_type ON bar_expenses (month_key, expense_type)`);
     
-    // Tabella manutenzioni
+    // Tabella manutenzioni (modificata per supportare multiple spese per tipo)
     await client.query(`
       CREATE TABLE IF NOT EXISTS maintenance (
         id SERIAL PRIMARY KEY,
@@ -243,6 +243,14 @@ const initDatabase = async () => {
       )
     `);
     
+    // Rimuovi il vincolo UNIQUE se esiste (per permettere più spese per tipo)
+    try {
+      await client.query('ALTER TABLE maintenance DROP CONSTRAINT IF EXISTS maintenance_month_key_type_key');
+    } catch (error) {
+      // Ignora se il constraint non esiste o ha un nome diverso
+      console.log('Constraint UNIQUE non trovato o già rimosso');
+    }
+    
     await client.query(`
       DROP TRIGGER IF EXISTS update_maintenance_updated_at ON maintenance;
       CREATE TRIGGER update_maintenance_updated_at
@@ -250,6 +258,29 @@ const initDatabase = async () => {
         FOR EACH ROW
         EXECUTE FUNCTION update_updated_at_column();
     `);
+    
+    // Tabella note manutenzioni
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_notes (
+        id SERIAL PRIMARY KEY,
+        month_key VARCHAR(7) NOT NULL,
+        type maintenance_type NOT NULL,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (month_key, type)
+      )
+    `);
+    
+    await client.query(`
+      DROP TRIGGER IF EXISTS update_maintenance_notes_updated_at ON maintenance_notes;
+      CREATE TRIGGER update_maintenance_notes_updated_at
+        BEFORE UPDATE ON maintenance_notes
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+    
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_maintenance_month_type ON maintenance (month_key, type)`);
     
     // Inizializza superadmin con le nuove credenziali
     const bcrypt = require('bcryptjs');

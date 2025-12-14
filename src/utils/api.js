@@ -58,6 +58,10 @@ export const createAppointment = (appointment) => apiCall('/appointments', {
   method: 'POST',
   body: JSON.stringify(appointment)
 });
+export const createAppointmentsBatch = (appointments, recurrenceGroupId) => apiCall('/appointments/batch', {
+  method: 'POST',
+  body: JSON.stringify({ appointments, recurrenceGroupId })
+});
 export const updateAppointment = (id, appointment) => apiCall(`/appointments/${id}`, {
   method: 'PUT',
   body: JSON.stringify(appointment)
@@ -114,8 +118,16 @@ export const deleteBarExpense = (monthKey, expenseId) => apiCall(`/bar-expenses/
 
 // Maintenance API
 export const getMaintenance = (monthKey) => apiCall(`/maintenance/${monthKey}`);
-export const saveMaintenance = (monthKey, type, price, notes) => apiCall(`/maintenance/${monthKey}`, {
+export const addMaintenanceExpense = (monthKey, type, price) => apiCall(`/maintenance/${monthKey}`, {
   method: 'POST',
-  body: JSON.stringify({ type, price, notes })
+  body: JSON.stringify({ type, price })
+});
+export const deleteMaintenanceExpense = (monthKey, expenseId) => apiCall(`/maintenance/${monthKey}/${expenseId}`, {
+  method: 'DELETE'
+});
+export const getMaintenanceNotes = (monthKey) => apiCall(`/maintenance/notes/${monthKey}`);
+export const saveMaintenanceNotes = (monthKey, type, notes) => apiCall(`/maintenance/notes/${monthKey}`, {
+  method: 'POST',
+  body: JSON.stringify({ type, notes })
 });
 

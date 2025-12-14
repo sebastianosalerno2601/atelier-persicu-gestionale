@@ -70,6 +70,7 @@ const AllCalendar = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [touchElement, setTouchElement] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
   
   // Refs per accedere ai valori più recenti nei listener
@@ -526,6 +527,9 @@ const AllCalendar = () => {
   };
 
   const handleSaveAppointment = async (appointmentData) => {
+    if (isSaving) return; // Previeni chiamate multiple
+    
+    setIsSaving(true);
     try {
       if (selectedAppointment) {
         // Modifica appuntamento esistente
@@ -552,7 +556,14 @@ const AllCalendar = () => {
       setSelectedEmployeeForNew(null);
     } catch (error) {
       console.error('Errore salvataggio appuntamento:', error);
-      alert('Errore nel salvataggio dell\'appuntamento: ' + error.message);
+      // Gestisci errore duplicato in modo user-friendly
+      if (error.message && error.message.includes('duplicato')) {
+        alert('⚠️ ' + error.message);
+      } else {
+        alert('Errore nel salvataggio dell\'appuntamento: ' + error.message);
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -734,12 +745,15 @@ const AllCalendar = () => {
           onSave={handleSaveAppointment}
           onDelete={handleDeleteAppointment}
           onClose={() => {
-            setIsModalOpen(false);
-            setSelectedAppointment(null);
-            setSelectedTimeSlot(null);
-            setSelectedEmployeeForNew(null);
-            setSelectedForMove(null); // Reset selezione quando chiudi modal
+            if (!isSaving) {
+              setIsModalOpen(false);
+              setSelectedAppointment(null);
+              setSelectedTimeSlot(null);
+              setSelectedEmployeeForNew(null);
+              setSelectedForMove(null); // Reset selezione quando chiudi modal
+            }
           }}
+          isLoading={isSaving}
         />
       )}
     </div>
