@@ -103,6 +103,27 @@ const Appointments = () => {
     }
   }, [selectedEmployee]);
 
+  const loadAppointments = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+      const data = await getAppointmentsAPI();
+      const camelCaseData = Array.isArray(data) ? data.map(appointmentToCamelCase) : [];
+      setAppointments(camelCaseData);
+    } catch (error) {
+      console.error('Errore caricamento appuntamenti:', error);
+      // Mostra alert solo se non è un aggiornamento automatico
+      if (showLoading) {
+        alert('Errore nel caricamento degli appuntamenti');
+      }
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     // Carica auth per verificare se è dipendente
     const authData = JSON.parse(localStorage.getItem('atelier-auth') || '{}');
@@ -138,27 +159,6 @@ const Appointments = () => {
       setSelectedEmployee(employees[0].id);
     }
   }, [employees, selectedEmployee]);
-
-  const loadAppointments = useCallback(async (showLoading = true) => {
-    try {
-      if (showLoading) {
-        setLoading(true);
-      }
-      const data = await getAppointmentsAPI();
-      const camelCaseData = Array.isArray(data) ? data.map(appointmentToCamelCase) : [];
-      setAppointments(camelCaseData);
-    } catch (error) {
-      console.error('Errore caricamento appuntamenti:', error);
-      // Mostra alert solo se non è un aggiornamento automatico
-      if (showLoading) {
-        alert('Errore nel caricamento degli appuntamenti');
-      }
-    } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  }, []);
 
   const timeSlots = [];
   for (let hour = 9; hour <= 21; hour++) {
