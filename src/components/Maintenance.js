@@ -38,6 +38,15 @@ const Maintenance = () => {
     return `${year}-${String(month).padStart(2, '0')}`;
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   const loadMaintenance = async () => {
     try {
       setLoading(true);
@@ -57,7 +66,8 @@ const Maintenance = () => {
         if (expensesData[key] && Array.isArray(expensesData[key])) {
           converted[key] = expensesData[key].map(expense => ({
             id: expense.id,
-            price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price)
+            price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price),
+            created_at: expense.created_at
           }));
         }
       });
@@ -268,19 +278,25 @@ const Maintenance = () => {
                   )}
                   {showDetails[type] && expenses[type].length > 0 && (
                     <div className="maintenance-prices">
-                      {expenses[type].map((expense) => (
-                        <div key={expense.id} className="price-chip">
-                          <span>{expense.price.toFixed(2)} €</span>
-                          <button
-                            type="button"
-                            className="remove-price-btn"
-                            onClick={() => handleRemovePrice(type, expense.id)}
-                            aria-label="Rimuovi prezzo"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                      {expenses[type].map((expense) => {
+                        const createdDate = expense.created_at ? formatDate(expense.created_at) : '';
+                        return (
+                          <div key={expense.id} className="price-chip">
+                            <span className="price-chip-content">
+                              <span className="price-amount">{expense.price.toFixed(2)} €</span>
+                              {createdDate && <span className="price-date">{createdDate}</span>}
+                            </span>
+                            <button
+                              type="button"
+                              className="remove-price-btn"
+                              onClick={() => handleRemovePrice(type, expense.id)}
+                              aria-label="Rimuovi prezzo"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   {showNotes[type] && (

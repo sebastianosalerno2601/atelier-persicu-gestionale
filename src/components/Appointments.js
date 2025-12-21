@@ -112,25 +112,53 @@ const Appointments = () => {
     loadAppointments();
   }, []);
 
+  // Polling automatico ogni 30 secondi per sincronizzare con altri utenti (senza mostrare loading)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadAppointments(false);
+    }, 30000); // 30 secondi
+
+    return () => clearInterval(interval);
+  }, [loadAppointments]);
+
+  // Ricarica quando la finestra torna in focus (quando l'utente torna alla scheda)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadAppointments(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [loadAppointments]);
+
   useEffect(() => {
     if (employees.length > 0 && !selectedEmployee) {
       setSelectedEmployee(employees[0].id);
     }
   }, [employees, selectedEmployee]);
 
-  const loadAppointments = async () => {
+  const loadAppointments = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const data = await getAppointmentsAPI();
       const camelCaseData = Array.isArray(data) ? data.map(appointmentToCamelCase) : [];
       setAppointments(camelCaseData);
     } catch (error) {
       console.error('Errore caricamento appuntamenti:', error);
-      alert('Errore nel caricamento degli appuntamenti');
+      // Mostra alert solo se non è un aggiornamento automatico
+      if (showLoading) {
+        alert('Errore nel caricamento degli appuntamenti');
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   const timeSlots = [];
   for (let hour = 9; hour <= 21; hour++) {

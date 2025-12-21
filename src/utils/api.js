@@ -21,12 +21,34 @@ const apiCall = async (endpoint, options = {}) => {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
     
     if (!response.ok) {
+      // Se il token è scaduto o non valido (401), fai logout automatico
+      // Escludi l'endpoint di login perché lì il 401 significa credenziali errate, non token scaduto
+      if (response.status === 401 && !endpoint.includes('/auth/login')) {
+        // Pulisci il localStorage
+        localStorage.removeItem('atelier-auth-token');
+        localStorage.removeItem('atelier-auth');
+        
+        // Reindirizza al login solo se non siamo già nella pagina di login
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+          // Restituisci una Promise che non verrà mai risolta (la pagina viene ricaricata)
+          return new Promise(() => {});
+        }
+        
+        const error = await response.json().catch(() => ({ error: 'Sessione scaduta. Effettua nuovamente il login.' }));
+        throw new Error(error.error || 'Sessione scaduta. Effettua nuovamente il login.');
+      }
+      
       const error = await response.json().catch(() => ({ error: 'Errore server' }));
       throw new Error(error.error || `Errore ${response.status}`);
     }
     
     return await response.json();
   } catch (error) {
+    // Se l'errore è già stato gestito (401), rilancialo
+    if (error.message.includes('Sessione scaduta')) {
+      throw error;
+    }
     console.error('API Error:', error);
     throw error;
   }

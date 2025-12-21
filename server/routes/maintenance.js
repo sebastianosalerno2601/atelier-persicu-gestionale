@@ -19,7 +19,8 @@ router.get('/:monthKey', authMiddleware, async (req, res) => {
       if (grouped[m.type]) {
         grouped[m.type].push({
           id: m.id,
-          price: parseFloat(m.price)
+          price: parseFloat(m.price),
+          created_at: m.created_at
         });
       }
     });

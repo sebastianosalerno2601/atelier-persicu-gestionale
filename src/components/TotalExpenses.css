@@ -136,6 +136,91 @@
   text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
 }
 
+.earnings-card {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(76, 175, 80, 0.05) 100%);
+  border: 2px solid rgba(76, 175, 80, 0.3);
+  border-radius: 20px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.earnings-label {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.earnings-amount {
+  font-size: 4rem;
+  font-weight: 700;
+  color: #4CAF50;
+  text-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+  margin-bottom: 0.75rem;
+}
+
+.earnings-description {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
+.net-profit-card {
+  border-radius: 20px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  border: 2px solid;
+  margin-top: 2rem;
+}
+
+.net-profit-card.profit-positive {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.2) 0%, rgba(76, 175, 80, 0.1) 100%);
+  border-color: rgba(76, 175, 80, 0.5);
+}
+
+.net-profit-card.profit-negative {
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.2) 0%, rgba(244, 67, 54, 0.1) 100%);
+  border-color: rgba(244, 67, 54, 0.5);
+}
+
+.net-profit-label {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.net-profit-amount {
+  font-size: 4rem;
+  font-weight: 700;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  margin-bottom: 0.75rem;
+}
+
+.net-profit-card.profit-positive .net-profit-amount {
+  color: #4CAF50;
+  text-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+}
+
+.net-profit-card.profit-negative .net-profit-amount {
+  color: #f44336;
+  text-shadow: 0 0 20px rgba(244, 67, 54, 0.5);
+}
+
+.net-profit-description {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+
 @media (max-width: 1024px) {
   .total-expenses-container {
     padding: 1.5rem;
@@ -174,6 +259,25 @@
   }
 
   .grand-total-amount {
+    font-size: 2.5rem;
+  }
+
+  .earnings-card {
+    padding: 2rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .earnings-amount {
+    font-size: 2.5rem;
+  }
+
+  .net-profit-card {
+    padding: 2rem;
+    margin-top: 1.5rem;
+  }
+
+  .net-profit-amount {
     font-size: 2.5rem;
   }
 }

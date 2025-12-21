@@ -12,6 +12,8 @@ const TotalExpenses = () => {
   const [productExpensesTotal, setProductExpensesTotal] = useState(0);
   const [employeesEarnings, setEmployeesEarnings] = useState(0);
   const [grandTotal, setGrandTotal] = useState(0);
+  const [ownerEarnings, setOwnerEarnings] = useState(0);
+  const [netProfit, setNetProfit] = useState(0);
 
   useEffect(() => {
     loadAllData();
@@ -60,18 +62,21 @@ const TotalExpenses = () => {
       // Calcola totale manutenzioni (nuova struttura con array di spese)
       let maintenanceSum = 0;
       if (maintenance && typeof maintenance === 'object') {
-        // Gestisce sia la nuova struttura (array di spese) che la vecchia (price singolo)
-        Object.values(maintenance).forEach(expenses => {
-          if (Array.isArray(expenses)) {
-            // Nuova struttura: array di { id, price }
-            expenses.forEach(exp => {
-              maintenanceSum += parseFloat(exp.price) || 0;
-            });
-          } else if (expenses && typeof expenses === 'object' && expenses.price) {
-            // Vecchia struttura: { price, notes }
-            maintenanceSum += parseFloat(expenses.price) || 0;
-          }
-        });
+        // La nuova struttura è { expenses: { ordinaria: [...], straordinaria: [...] }, notes: {...} }
+        const maintenanceExpenses = maintenance.expenses || maintenance;
+        if (maintenanceExpenses && typeof maintenanceExpenses === 'object') {
+          Object.values(maintenanceExpenses).forEach(expenses => {
+            if (Array.isArray(expenses)) {
+              // Nuova struttura: array di { id, price }
+              expenses.forEach(exp => {
+                maintenanceSum += parseFloat(exp.price) || 0;
+              });
+            } else if (expenses && typeof expenses === 'object' && expenses.price) {
+              // Vecchia struttura: { price, notes }
+              maintenanceSum += parseFloat(expenses.price) || 0;
+            }
+          });
+        }
       }
       setMaintenanceTotal(maintenanceSum);
 
@@ -113,9 +118,18 @@ const TotalExpenses = () => {
       const employeesTotal = totalRevenue * 0.4;
       setEmployeesEarnings(employeesTotal);
 
-      // Calcola totale complessivo
+      // Calcola guadagni del proprietario (60% del totale incassi)
+      const ownerTotal = totalRevenue * 0.6;
+      setOwnerEarnings(ownerTotal);
+
+      // Calcola totale complessivo spese (include anche il 40% dipendenti per visualizzazione)
       const total = utilitiesSum + barTotal + maintenanceSum + productTotal + employeesTotal;
       setGrandTotal(total);
+
+      // Calcola profitto netto (guadagni - spese, escludendo il 40% dipendenti perché già dedotto nei guadagni)
+      const expensesForProfit = utilitiesSum + barTotal + maintenanceSum + productTotal;
+      const profit = ownerTotal - expensesForProfit;
+      setNetProfit(profit);
 
     } catch (error) {
       console.error('Errore caricamento dati:', error);
@@ -159,7 +173,7 @@ const TotalExpenses = () => {
   return (
     <div className="total-expenses-container fade-in">
       <div className="total-expenses-header">
-        <h2 className="section-title">Totale Spese</h2>
+        <h2 className="section-title">Totale Spese e Guadagni</h2>
       </div>
 
       <div className="month-selector-section">
@@ -228,6 +242,22 @@ const TotalExpenses = () => {
       <div className="grand-total-card">
         <div className="grand-total-label">TOTALE SPESE MENSILI</div>
         <div className="grand-total-amount">{grandTotal.toFixed(2)} €</div>
+      </div>
+
+      <div className="earnings-card">
+        <div className="earnings-label">TOTALE GUADAGNI (60%)</div>
+        <div className="earnings-amount">{ownerEarnings.toFixed(2)} €</div>
+        <div className="earnings-description">
+          Incassi totali del mese (escluso 40% dipendenti)
+        </div>
+      </div>
+
+      <div className={`net-profit-card ${netProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>
+        <div className="net-profit-label">PROFITTO NETTO</div>
+        <div className="net-profit-amount">{netProfit.toFixed(2)} €</div>
+        <div className="net-profit-description">
+          {netProfit >= 0 ? 'Guadagno mensile' : 'Perdita mensile'}
+        </div>
       </div>
     </div>
   );

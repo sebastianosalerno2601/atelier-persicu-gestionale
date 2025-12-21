@@ -165,6 +165,23 @@
   color: #ffffff;
 }
 
+.price-chip-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.price-amount {
+  font-weight: 500;
+}
+
+.price-date {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  opacity: 0.8;
+}
+
 .remove-price-btn {
   background: rgba(255, 77, 77, 0.2);
   border: 1px solid rgba(255, 77, 77, 0.3);
