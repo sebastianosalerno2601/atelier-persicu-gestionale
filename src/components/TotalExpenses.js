@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getUtilities, getBarExpenses, getMaintenance, getAppointments, getProductExpenses } from '../utils/api';
 import { getPrice } from '../utils/storage';
+import ExpensesDetailModal from './ExpensesDetailModal';
 import './TotalExpenses.css';
 
 const TotalExpenses = () => {
@@ -14,6 +15,8 @@ const TotalExpenses = () => {
   const [grandTotal, setGrandTotal] = useState(0);
   const [ownerEarnings, setOwnerEarnings] = useState(0);
   const [netProfit, setNetProfit] = useState(0);
+  const [detailModal, setDetailModal] = useState({ isOpen: false, category: null, expenses: [] });
+  const [allExpensesData, setAllExpensesData] = useState({});
 
   useEffect(() => {
     loadAllData();
@@ -131,11 +134,91 @@ const TotalExpenses = () => {
       const profit = ownerTotal - expensesForProfit;
       setNetProfit(profit);
 
+      // Salva tutti i dati delle spese per il popup
+      setAllExpensesData({
+        utilities,
+        barExpenses,
+        maintenance,
+        productExpenses
+      });
+
     } catch (error) {
       console.error('Errore caricamento dati:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCategoryClick = (category) => {
+    const monthKey = getMonthKey(currentMonth);
+    let expenses = [];
+
+    switch(category) {
+      case 'Manutenzioni': {
+        const maintenanceExpenses = allExpensesData.maintenance?.expenses || allExpensesData.maintenance || {};
+        Object.values(maintenanceExpenses).forEach(expenseArray => {
+          if (Array.isArray(expenseArray)) {
+            expenses = expenses.concat(expenseArray.map(exp => ({
+              ...exp,
+              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0
+            })));
+          }
+        });
+        break;
+      }
+      case 'Spese Bar': {
+        Object.values(allExpensesData.barExpenses || {}).forEach(expenseArray => {
+          if (Array.isArray(expenseArray)) {
+            expenses = expenses.concat(expenseArray.map(exp => ({
+              ...exp,
+              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0
+            })));
+          }
+        });
+        break;
+      }
+      case 'Spese Prodotti': {
+        Object.values(allExpensesData.productExpenses || {}).forEach(expenseArray => {
+          if (Array.isArray(expenseArray)) {
+            expenses = expenses.concat(expenseArray.map(exp => ({
+              ...exp,
+              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0
+            })));
+          }
+        });
+        break;
+      }
+      case 'Utenze': {
+        // Per le utenze, creiamo oggetti fittizi perché non hanno date individuali
+        const utils = allExpensesData.utilities || {};
+        const utilityLabels = {
+          pigione: 'Pigione',
+          acqua: 'Acqua',
+          luce: 'Luce',
+          spazzatura: 'Spazzatura',
+          gas: 'Gas'
+        };
+        Object.keys(utilityLabels).forEach(key => {
+          const value = parseFloat(utils[key]) || 0;
+          if (value > 0) {
+            expenses.push({
+              id: `utility-${key}`,
+              price: value,
+              expense_type: utilityLabels[key],
+              created_at: null,
+              reason: ''
+            });
+          }
+        });
+        break;
+      }
+    }
+
+    setDetailModal({
+      isOpen: true,
+      category,
+      expenses
+    });
   };
 
   const monthNames = [
@@ -198,7 +281,7 @@ const TotalExpenses = () => {
       </div>
 
       <div className="expenses-summary">
-        <div className="expense-card">
+        <div className="expense-card" onClick={() => handleCategoryClick('Utenze')} style={{ cursor: 'pointer' }}>
           <div className="expense-label">Utenze</div>
           <div className="expense-amount">{utilitiesTotal.toFixed(2)} €</div>
           <div className="expense-description">
@@ -206,7 +289,7 @@ const TotalExpenses = () => {
           </div>
         </div>
 
-        <div className="expense-card">
+        <div className="expense-card" onClick={() => handleCategoryClick('Spese Bar')} style={{ cursor: 'pointer' }}>
           <div className="expense-label">Spese Bar</div>
           <div className="expense-amount">{barExpensesTotal.toFixed(2)} €</div>
           <div className="expense-description">
@@ -214,7 +297,7 @@ const TotalExpenses = () => {
           </div>
         </div>
 
-        <div className="expense-card">
+        <div className="expense-card" onClick={() => handleCategoryClick('Manutenzioni')} style={{ cursor: 'pointer' }}>
           <div className="expense-label">Manutenzioni</div>
           <div className="expense-amount">{maintenanceTotal.toFixed(2)} €</div>
           <div className="expense-description">
@@ -222,7 +305,7 @@ const TotalExpenses = () => {
           </div>
         </div>
 
-        <div className="expense-card">
+        <div className="expense-card" onClick={() => handleCategoryClick('Spese Prodotti')} style={{ cursor: 'pointer' }}>
           <div className="expense-label">Spese Prodotti</div>
           <div className="expense-amount">{productExpensesTotal.toFixed(2)} €</div>
           <div className="expense-description">
@@ -259,6 +342,14 @@ const TotalExpenses = () => {
           {netProfit >= 0 ? 'Guadagno mensile' : 'Perdita mensile'}
         </div>
       </div>
+
+      <ExpensesDetailModal
+        isOpen={detailModal.isOpen}
+        onClose={() => setDetailModal({ isOpen: false, category: null, expenses: [] })}
+        category={detailModal.category}
+        expenses={detailModal.expenses}
+        monthKey={getMonthKey(currentMonth)}
+      />
     </div>
   );
 };

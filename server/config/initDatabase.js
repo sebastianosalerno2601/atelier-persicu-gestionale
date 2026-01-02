@@ -197,6 +197,19 @@ const initDatabase = async () => {
     
     await client.query(`CREATE INDEX IF NOT EXISTS idx_product_expenses_month_type ON product_expenses (month_key, product_type)`);
     
+    // Aggiungi colonna reason se non esiste
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'product_expenses' AND column_name = 'reason'
+        ) THEN
+          ALTER TABLE product_expenses ADD COLUMN reason TEXT;
+        END IF;
+      END $$;
+    `);
+    
     // Tabella note prodotti
     await client.query(`
       CREATE TABLE IF NOT EXISTS product_expenses_notes (
@@ -229,6 +242,19 @@ const initDatabase = async () => {
     
     await client.query(`CREATE INDEX IF NOT EXISTS idx_bar_expenses_month_type ON bar_expenses (month_key, expense_type)`);
     
+    // Aggiungi colonna reason se non esiste
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'bar_expenses' AND column_name = 'reason'
+        ) THEN
+          ALTER TABLE bar_expenses ADD COLUMN reason TEXT;
+        END IF;
+      END $$;
+    `);
+    
     // Tabella manutenzioni (modificata per supportare multiple spese per tipo)
     await client.query(`
       CREATE TABLE IF NOT EXISTS maintenance (
@@ -260,6 +286,19 @@ const initDatabase = async () => {
     `);
     
     await client.query(`CREATE INDEX IF NOT EXISTS idx_maintenance_month_type ON maintenance (month_key, type)`);
+    
+    // Aggiungi colonna reason se non esiste
+    await client.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'maintenance' AND column_name = 'reason'
+        ) THEN
+          ALTER TABLE maintenance ADD COLUMN reason TEXT;
+        END IF;
+      END $$;
+    `);
     
     // Tabella note manutenzioni
     await client.query(`

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getMaintenance, addMaintenanceExpense, deleteMaintenanceExpense, getMaintenanceNotes, saveMaintenanceNotes } from '../utils/api';
+import ExpenseReasonModal from './ExpenseReasonModal';
 import './Maintenance.css';
 
 const maintenanceTypes = {
@@ -27,10 +28,25 @@ const Maintenance = () => {
     straordinaria: ''
   });
   const [loading, setLoading] = useState(false);
+  const [reasonModal, setReasonModal] = useState({ isOpen: false, type: null, price: 0 });
+  const [selectedExpenseForReason, setSelectedExpenseForReason] = useState(null);
 
   useEffect(() => {
     loadMaintenance();
   }, [currentMonth]);
+
+  // Chiudi tooltip quando si clicca fuori
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (selectedExpenseForReason && !e.target.closest('.price-chip')) {
+        setSelectedExpenseForReason(null);
+      }
+    };
+    if (selectedExpenseForReason) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [selectedExpenseForReason]);
 
   const getMonthKey = (date) => {
     const year = date.getFullYear();
@@ -67,7 +83,8 @@ const Maintenance = () => {
           converted[key] = expensesData[key].map(expense => ({
             id: expense.id,
             price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price),
-            created_at: expense.created_at
+            created_at: expense.created_at,
+            reason: expense.reason || ''
           }));
         }
       });
@@ -111,21 +128,29 @@ const Maintenance = () => {
   const handleInputBlur = async (key) => {
     const value = parseFloat(tempInputs[key]);
     if (!isNaN(value) && value > 0) {
-      try {
-        const monthKey = getMonthKey(currentMonth);
-        await addMaintenanceExpense(monthKey, key, value);
-        
-        // Ricarica le spese per ottenere l'ID reale
-        await loadMaintenance();
-        
-        setTempInputs({
-          ...tempInputs,
-          [key]: ''
-        });
-      } catch (error) {
-        console.error('Errore aggiunta spesa manutenzione:', error);
-        alert('Errore nell\'aggiunta della spesa: ' + error.message);
-      }
+      // Mostra il popup per inserire il motivo
+      setReasonModal({ isOpen: true, type: key, price: value });
+      setTempInputs({
+        ...tempInputs,
+        [key]: ''
+      });
+    }
+  };
+
+  const handleSaveExpenseWithReason = async (reason) => {
+    const { type, price } = reasonModal;
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      await addMaintenanceExpense(monthKey, type, price, reason);
+      
+      // Ricarica le spese per ottenere l'ID reale
+      await loadMaintenance();
+      
+      setReasonModal({ isOpen: false, type: null, price: 0 });
+    } catch (error) {
+      console.error('Errore aggiunta spesa manutenzione:', error);
+      alert('Errore nell\'aggiunta della spesa: ' + error.message);
+      setReasonModal({ isOpen: false, type: null, price: 0 });
     }
   };
 
@@ -280,10 +305,18 @@ const Maintenance = () => {
                     <div className="maintenance-prices">
                       {expenses[type].map((expense) => {
                         const createdDate = expense.created_at ? formatDate(expense.created_at) : '';
+                        const expenseReason = expense.reason || '';
                         return (
-                          <div key={expense.id} className="price-chip">
+                          <div key={expense.id} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span className="price-amount">{expense.price.toFixed(2)} €</span>
+                              <span 
+                                className="price-amount" 
+                                style={{ cursor: expenseReason ? 'pointer' : 'default' }}
+                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId: expense.id, reason: expenseReason, price: expense.price, label: maintenanceTypes[type] })}
+                                title={expenseReason ? 'Clicca per vedere il motivo' : ''}
+                              >
+                                {expense.price.toFixed(2)} €
+                              </span>
                               {createdDate && <span className="price-date">{createdDate}</span>}
                             </span>
                             <button
@@ -294,6 +327,21 @@ const Maintenance = () => {
                             >
                               ×
                             </button>
+                            {selectedExpenseForReason && selectedExpenseForReason.expenseId === expense.id && (
+                              <div className="expense-reason-tooltip">
+                                <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Motivo:</div>
+                                <div>{selectedExpenseForReason.reason}</div>
+                                <button 
+                                  style={{ marginTop: '8px', padding: '4px 8px', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedExpenseForReason(null);
+                                  }}
+                                >
+                                  Chiudi
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -338,6 +386,14 @@ const Maintenance = () => {
           </div>
         </div>
       </div>
+
+      <ExpenseReasonModal
+        isOpen={reasonModal.isOpen}
+        onClose={() => setReasonModal({ isOpen: false, type: null, price: 0 })}
+        onSave={handleSaveExpenseWithReason}
+        price={reasonModal.price}
+        expenseLabel={reasonModal.type ? maintenanceTypes[reasonModal.type] : ''}
+      />
     </div>
   );
 };

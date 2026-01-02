@@ -89,6 +89,15 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+.expense-card[style*="cursor: pointer"] {
+  cursor: pointer;
+}
+
+.expense-card[style*="cursor: pointer"]:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
 .expense-label {
   font-size: 1.1rem;
   font-weight: 600;

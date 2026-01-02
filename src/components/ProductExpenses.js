@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getProductExpenses, addProductExpense, deleteProductExpense, getProductExpensesNotes, saveProductExpensesNotes } from '../utils/api';
+import ExpenseReasonModal from './ExpenseReasonModal';
 import './ProductExpenses.css';
 
 const expenseLabels = {
@@ -66,10 +67,25 @@ const ProductExpenses = () => {
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [reasonModal, setReasonModal] = useState({ isOpen: false, key: null, price: 0 });
+  const [selectedExpenseForReason, setSelectedExpenseForReason] = useState(null);
 
   useEffect(() => {
     loadExpenses();
   }, [currentMonth]);
+
+  // Chiudi tooltip quando si clicca fuori
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (selectedExpenseForReason && !e.target.closest('.price-chip')) {
+        setSelectedExpenseForReason(null);
+      }
+    };
+    if (selectedExpenseForReason) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [selectedExpenseForReason]);
 
   const getMonthKey = (date) => {
     const year = date.getFullYear();
@@ -120,7 +136,8 @@ const ProductExpenses = () => {
           converted[key] = expensesData[key].map(expense => ({
             id: expense.id,
             price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price),
-            created_at: expense.created_at
+            created_at: expense.created_at,
+            reason: expense.reason || ''
           }));
         }
       });
@@ -172,26 +189,50 @@ const ProductExpenses = () => {
   const handleInputBlur = async (key) => {
     const value = parseFloat(tempInputs[key]);
     if (!isNaN(value) && value > 0) {
-      try {
-        const monthKey = getMonthKey(currentMonth);
-        await addProductExpense(monthKey, key, value);
-        
-        // Ricarica le spese per ottenere l'ID reale
-        await loadExpenses();
-        
-        setTempInputs({
-          ...tempInputs,
-          [key]: ''
-        });
-      } catch (error) {
-        console.error('Errore aggiunta spesa prodotto:', error);
-        alert('Errore nell\'aggiunta della spesa: ' + error.message);
+      // Mostra il popup solo per "spesa prodotti generali"
+      if (key === 'spesaProdottiGenerali') {
+        setReasonModal({ isOpen: true, key, price: value });
+      } else {
+        // Per gli altri prodotti, salva direttamente senza motivo
+        try {
+          const monthKey = getMonthKey(currentMonth);
+          await addProductExpense(monthKey, key, value, '');
+          
+          // Ricarica le spese per ottenere l'ID reale
+          await loadExpenses();
+        } catch (error) {
+          console.error('Errore aggiunta spesa prodotto:', error);
+          alert('Errore nell\'aggiunta della spesa: ' + error.message);
+        }
       }
+      
+      setTempInputs({
+        ...tempInputs,
+        [key]: ''
+      });
+    }
+  };
+
+  const handleSaveExpenseWithReason = async (reason) => {
+    const { key, price } = reasonModal;
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      await addProductExpense(monthKey, key, price, reason);
+      
+      // Ricarica le spese per ottenere l'ID reale
+      await loadExpenses();
+      
+      setReasonModal({ isOpen: false, key: null, price: 0 });
+    } catch (error) {
+      console.error('Errore aggiunta spesa prodotto:', error);
+      alert('Errore nell\'aggiunta della spesa: ' + error.message);
+      setReasonModal({ isOpen: false, key: null, price: 0 });
     }
   };
 
   const handleInputKeyPress = (key, e) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleInputBlur(key);
     }
   };
@@ -327,10 +368,18 @@ const ProductExpenses = () => {
                         const price = typeof expense === 'number' ? expense : expense.price;
                         const expenseId = typeof expense === 'number' ? `temp-${key}-${expenses[key].indexOf(expense)}` : expense.id;
                         const createdDate = typeof expense === 'object' && expense.created_at ? formatDate(expense.created_at) : '';
+                        const expenseReason = typeof expense === 'object' && expense.reason ? expense.reason : '';
                         return (
-                          <div key={expenseId} className="price-chip">
+                          <div key={expenseId} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span className="price-amount">{price.toFixed(2)} €</span>
+                              <span 
+                                className="price-amount" 
+                                style={{ cursor: expenseReason ? 'pointer' : 'default' }}
+                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId, reason: expenseReason, price, label: expenseLabels[key] })}
+                                title={expenseReason ? 'Clicca per vedere il motivo' : ''}
+                              >
+                                {price.toFixed(2)} €
+                              </span>
                               {createdDate && <span className="price-date">{createdDate}</span>}
                             </span>
                             <button
@@ -341,6 +390,21 @@ const ProductExpenses = () => {
                             >
                               ×
                             </button>
+                            {selectedExpenseForReason && selectedExpenseForReason.expenseId === expenseId && (
+                              <div className="expense-reason-tooltip">
+                                <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Motivo:</div>
+                                <div>{selectedExpenseForReason.reason}</div>
+                                <button 
+                                  style={{ marginTop: '8px', padding: '4px 8px', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedExpenseForReason(null);
+                                  }}
+                                >
+                                  Chiudi
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -422,10 +486,18 @@ const ProductExpenses = () => {
                         const price = typeof expense === 'number' ? expense : expense.price;
                         const expenseId = typeof expense === 'number' ? `temp-${key}-${expenses[key].indexOf(expense)}` : expense.id;
                         const createdDate = typeof expense === 'object' && expense.created_at ? formatDate(expense.created_at) : '';
+                        const expenseReason = typeof expense === 'object' && expense.reason ? expense.reason : '';
                         return (
-                          <div key={expenseId} className="price-chip">
+                          <div key={expenseId} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span className="price-amount">{price.toFixed(2)} €</span>
+                              <span 
+                                className="price-amount" 
+                                style={{ cursor: expenseReason ? 'pointer' : 'default' }}
+                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId, reason: expenseReason, price, label: expenseLabels[key] })}
+                                title={expenseReason ? 'Clicca per vedere il motivo' : ''}
+                              >
+                                {price.toFixed(2)} €
+                              </span>
                               {createdDate && <span className="price-date">{createdDate}</span>}
                             </span>
                             <button
@@ -436,6 +508,21 @@ const ProductExpenses = () => {
                             >
                               ×
                             </button>
+                            {selectedExpenseForReason && selectedExpenseForReason.expenseId === expenseId && (
+                              <div className="expense-reason-tooltip">
+                                <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Motivo:</div>
+                                <div>{selectedExpenseForReason.reason}</div>
+                                <button 
+                                  style={{ marginTop: '8px', padding: '4px 8px', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedExpenseForReason(null);
+                                  }}
+                                >
+                                  Chiudi
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -479,6 +566,14 @@ const ProductExpenses = () => {
           </div>
         </div>
       </div>
+
+      <ExpenseReasonModal
+        isOpen={reasonModal.isOpen}
+        onClose={() => setReasonModal({ isOpen: false, key: null, price: 0 })}
+        onSave={handleSaveExpenseWithReason}
+        price={reasonModal.price}
+        expenseLabel={reasonModal.key ? expenseLabels[reasonModal.key] : ''}
+      />
     </div>
   );
 };

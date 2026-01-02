@@ -115,9 +115,9 @@ export const saveUtilities = (monthKey, utilities) => apiCall(`/utilities/${mont
 
 // Product Expenses API
 export const getProductExpenses = (monthKey) => apiCall(`/product-expenses/${monthKey}`);
-export const addProductExpense = (monthKey, productType, price) => apiCall(`/product-expenses/${monthKey}`, {
+export const addProductExpense = (monthKey, productType, price, reason) => apiCall(`/product-expenses/${monthKey}`, {
   method: 'POST',
-  body: JSON.stringify({ productType, price })
+  body: JSON.stringify({ productType, price, reason: reason || '' })
 });
 export const deleteProductExpense = (monthKey, expenseId) => apiCall(`/product-expenses/${monthKey}/${expenseId}`, {
   method: 'DELETE'
@@ -130,9 +130,9 @@ export const saveProductExpensesNotes = (monthKey, notes) => apiCall(`/product-e
 
 // Bar Expenses API
 export const getBarExpenses = (monthKey) => apiCall(`/bar-expenses/${monthKey}`);
-export const addBarExpense = (monthKey, expenseType, price) => apiCall(`/bar-expenses/${monthKey}`, {
+export const addBarExpense = (monthKey, expenseType, price, reason) => apiCall(`/bar-expenses/${monthKey}`, {
   method: 'POST',
-  body: JSON.stringify({ expenseType, price })
+  body: JSON.stringify({ expenseType, price, reason: reason || '' })
 });
 export const deleteBarExpense = (monthKey, expenseId) => apiCall(`/bar-expenses/${monthKey}/${expenseId}`, {
   method: 'DELETE'
@@ -140,9 +140,9 @@ export const deleteBarExpense = (monthKey, expenseId) => apiCall(`/bar-expenses/
 
 // Maintenance API
 export const getMaintenance = (monthKey) => apiCall(`/maintenance/${monthKey}`);
-export const addMaintenanceExpense = (monthKey, type, price) => apiCall(`/maintenance/${monthKey}`, {
+export const addMaintenanceExpense = (monthKey, type, price, reason) => apiCall(`/maintenance/${monthKey}`, {
   method: 'POST',
-  body: JSON.stringify({ type, price })
+  body: JSON.stringify({ type, price, reason: reason || '' })
 });
 export const deleteMaintenanceExpense = (monthKey, expenseId) => apiCall(`/maintenance/${monthKey}/${expenseId}`, {
   method: 'DELETE'

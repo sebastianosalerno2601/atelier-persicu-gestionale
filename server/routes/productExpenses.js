@@ -18,7 +18,8 @@ router.get('/:monthKey', authMiddleware, async (req, res) => {
       grouped[expense.product_type].push({
         id: expense.id,
         price: parseFloat(expense.price),
-        created_at: expense.created_at
+        created_at: expense.created_at,
+        reason: expense.reason || ''
       });
     });
     
@@ -33,11 +34,11 @@ router.get('/:monthKey', authMiddleware, async (req, res) => {
 router.post('/:monthKey', authMiddleware, async (req, res) => {
   try {
     const { monthKey } = req.params;
-    const { productType, price } = req.body;
+    const { productType, price, reason } = req.body;
     
     await pool.query(
-      'INSERT INTO product_expenses (month_key, product_type, price) VALUES (?, ?, ?)',
-      [monthKey, productType, price]
+      'INSERT INTO product_expenses (month_key, product_type, price, reason) VALUES (?, ?, ?, ?)',
+      [monthKey, productType, price, reason || null]
     );
     
     res.json({ message: 'Spesa aggiunta' });

@@ -20,7 +20,8 @@ router.get('/:monthKey', authMiddleware, async (req, res) => {
         grouped[m.type].push({
           id: m.id,
           price: parseFloat(m.price),
-          created_at: m.created_at
+          created_at: m.created_at,
+          reason: m.reason || ''
         });
       }
     });
@@ -57,15 +58,15 @@ router.get('/:monthKey', authMiddleware, async (req, res) => {
 router.post('/:monthKey', authMiddleware, async (req, res) => {
   try {
     const { monthKey } = req.params;
-    const { type, price } = req.body;
+    const { type, price, reason } = req.body;
     
     if (!type || (type !== 'ordinaria' && type !== 'straordinaria')) {
       return res.status(400).json({ error: 'Tipo manutenzione non valido' });
     }
     
     await pool.query(
-      'INSERT INTO maintenance (month_key, type, price) VALUES (?, ?, ?)',
-      [monthKey, type, price || 0]
+      'INSERT INTO maintenance (month_key, type, price, reason) VALUES (?, ?, ?, ?)',
+      [monthKey, type, price || 0, reason || null]
     );
     
     res.json({ message: 'Spesa aggiunta' });

@@ -46,7 +46,7 @@ export const getPrice = (serviceType) => {
   const prices = {
     'Taglio': 15,
     'Taglio e barba': 20,
-    'Taglio, barba e colore': 0, // Da aggiornare
+    'Taglio, barba e colore': 25,
     'Barba': 8,
     'Taglio baby': 13,
     'Rasatura': 10,

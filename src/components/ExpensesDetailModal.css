@@ -1,0 +1,180 @@
+.expenses-detail-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.expenses-detail-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 700px;
+  width: 90%;
+  max-height: 90vh;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.expenses-detail-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.expenses-detail-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.expenses-detail-modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.expenses-detail-modal-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.expenses-detail-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.expenses-detail-empty {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 16px;
+}
+
+.expenses-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.expense-detail-item {
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #000;
+}
+
+.expense-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.expense-detail-price {
+  font-size: 20px;
+  font-weight: 600;
+  color: #000;
+}
+
+.expense-detail-date {
+  font-size: 14px;
+  color: #666;
+}
+
+.expense-detail-reason {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e0e0e0;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.expense-detail-type {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #666;
+}
+
+.expense-detail-reason strong,
+.expense-detail-type strong {
+  color: #000;
+  margin-right: 4px;
+}
+
+.expenses-detail-total {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px solid #000;
+  text-align: right;
+  font-size: 18px;
+  color: #000;
+}
+
+.expenses-detail-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 20px 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.expenses-detail-btn {
+  padding: 10px 24px;
+  background: #000;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.expenses-detail-btn:hover {
+  background: #333;
+}
+

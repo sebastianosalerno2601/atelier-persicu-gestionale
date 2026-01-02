@@ -69,7 +69,6 @@ L'applicazione sarà disponibile su [http://localhost:3000](http://localhost:300
 ## Note
 
 - I dati sono salvati nel localStorage del browser
-- Il prezzo per "Taglio, barba e colore" è impostato a 0€ (da aggiornare)
 - Design ottimizzato per dispositivi mobile
 
 
