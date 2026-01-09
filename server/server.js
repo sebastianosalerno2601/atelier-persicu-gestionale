@@ -22,11 +22,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Inizializza database
+let dbInitialized = false;
 initDatabase()
+  .then(() => {
+    dbInitialized = true;
+    console.log('✅ Database inizializzato correttamente');
+  })
   .catch((err) => {
-    console.error('❌ Errore inizializzazione database:', err);
+    dbInitialized = false;
+    console.error('❌ Errore inizializzazione database:', err.message);
     console.error('Stack trace:', err.stack);
-    // Non fare crashare l'app, continua comunque (il server si avvierà)
+    console.error('⚠️  Il server si avvierà comunque, ma alcune funzionalità potrebbero non funzionare');
+    console.error('💡 Verifica la connessione al database e riavvia il server');
   });
 
 // Routes API
@@ -48,5 +55,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT);
+app.listen(PORT, () => {
+  console.log(`🚀 Server avviato sulla porta ${PORT}`);
+  console.log(`📊 Database inizializzato: ${dbInitialized ? '✅ Sì' : '❌ No'}`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🌐 Modalità: Produzione');
+  } else {
+    console.log('🔧 Modalità: Sviluppo');
+  }
+});
 

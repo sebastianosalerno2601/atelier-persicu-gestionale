@@ -12,7 +12,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 const poolConfig = {
   max: 12, // Supporta fino a 6+ utenti simultanei (2 connessioni per utente)
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000, // Aumentato a 5 secondi
+  allowExitOnIdle: false, // Mantieni il pool attivo
 };
 
 // In PRODUZIONE (Render): usa DATABASE_URL da Supabase
@@ -56,6 +57,7 @@ setTimeout(() => {
   pool.connect()
     .then(client => {
       client.release();
+      console.log('✅ Connessione database iniziale riuscita');
     })
     .catch(err => {
       const envType = isProduction ? 'produzione (Render)' : 'sviluppo locale';
@@ -77,9 +79,32 @@ setTimeout(() => {
     });
 }, 1000); // Aspetta 1 secondo prima di testare la connessione
 
-// Wrapper per compatibilità con mysql2-style query
-const originalQuery = pool.query.bind(pool);
-pool.query = async function(text, params) {
+// Keep-alive periodico per mantenere le connessioni attive (solo in produzione con Supabase)
+if (isProduction && process.env.DATABASE_URL) {
+  const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000; // Ogni 5 minuti
+  
+  setInterval(async () => {
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      // Ignora errori di keep-alive, non loggare per evitare spam
+      // Le connessioni verranno ricreate quando necessario
+    }
+  }, KEEP_ALIVE_INTERVAL);
+  
+  console.log('🔄 Keep-alive database attivo (ogni 5 minuti)');
+}
+
+// Funzione helper per eseguire query con retry automatico
+async function executeQueryWithRetry(text, params, retryCount = 0) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 500; // 500ms
+  
   // Converti ? placeholders a $1, $2, $3 per PostgreSQL
   let pgText = text;
   if (params && params.length > 0) {
@@ -87,11 +112,44 @@ pool.query = async function(text, params) {
     pgText = text.replace(/\?/g, () => `$${paramIndex++}`);
   }
   
-  const result = await originalQuery(pgText, params);
-  
-  // Converte risultato PostgreSQL { rows } a formato mysql2-style [rows]
-  // per compatibilità con le route esistenti
-  return [result.rows];
+  try {
+    // Usa una connessione diretta dal pool invece di pool.query
+    const client = await pool.connect();
+    try {
+      const result = await client.query(pgText, params);
+      // Converte risultato PostgreSQL { rows } a formato mysql2-style [rows]
+      return [result.rows];
+    } finally {
+      client.release(); // Rilascia sempre la connessione
+    }
+  } catch (error) {
+    // Se l'errore è dovuto a una connessione chiusa o timeout, prova a riconnettersi
+    const isConnectionError = 
+      error.message?.includes('Connection terminated') ||
+      error.message?.includes('connection timeout') ||
+      error.message?.includes('terminated unexpectedly') ||
+      error.code === 'ECONNRESET' ||
+      error.code === 'ETIMEDOUT' ||
+      error.code === 'ENOTFOUND' ||
+      error.code === '57P01'; // admin_shutdown
+    
+    if (isConnectionError && retryCount < MAX_RETRIES) {
+      // Attendi prima di riprovare (backoff esponenziale)
+      const delay = RETRY_DELAY * Math.pow(2, retryCount);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Riprova la query
+      return executeQueryWithRetry(text, params, retryCount + 1);
+    }
+    
+    // Se non è un errore di connessione o abbiamo superato i retry, rilancia l'errore
+    throw error;
+  }
+}
+
+// Wrapper per compatibilità con mysql2-style query e gestione retry automatico
+pool.query = async function(text, params) {
+  return executeQueryWithRetry(text, params);
 };
 
 module.exports = pool;
