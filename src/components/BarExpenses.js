@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { getBarExpenses, addBarExpense, deleteBarExpense } from '../utils/api';
+import { getBarExpenses, addBarExpense, deleteBarExpense, getCustomCategories, createCustomCategory, deleteCustomCategory } from '../utils/api';
 import ExpenseReasonModal from './ExpenseReasonModal';
+import CustomCategoryModal from './CustomCategoryModal';
 import './BarExpenses.css';
 
+const SECTION = 'bar';
 const expenseLabels = {
   kitCaffe: 'Kit Caffè',
   beverage: 'Beverage',
@@ -10,30 +12,40 @@ const expenseLabels = {
 };
 
 const BarExpenses = () => {
+  const [auth, setAuth] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  // Modificato per gestire spese con ID: { id, price }
-  const [expenses, setExpenses] = useState({
-    kitCaffe: [],
-    beverage: [],
-    operatoreBar: []
-  });
-
-  const [tempInputs, setTempInputs] = useState({
-    kitCaffe: '',
-    beverage: '',
-    operatoreBar: ''
-  });
-
+  const [customCategories, setCustomCategories] = useState([]);
+  const [expenses, setExpenses] = useState({});
+  const [tempInputs, setTempInputs] = useState({});
   const [showDetails, setShowDetails] = useState({});
   const [loading, setLoading] = useState(false);
   const [reasonModal, setReasonModal] = useState({ isOpen: false, key: null, price: 0 });
   const [selectedExpenseForReason, setSelectedExpenseForReason] = useState(null);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+
+  const buildTypeList = (customList) => {
+    const cust = customList ?? customCategories;
+    return [
+      ...Object.entries(expenseLabels).map(([key, label]) => ({ key, label })),
+      ...(Array.isArray(cust) ? cust : []).map((c) => ({ key: c.slug, label: c.name, customId: c.id }))
+    ];
+  };
+  const typeList = buildTypeList();
 
   useEffect(() => {
-    loadExpenses();
+    setAuth(JSON.parse(localStorage.getItem('atelier-auth') || '{}'));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await loadCustomCategories();
+      if (cancelled) return;
+      await loadExpenses(list);
+    })();
+    return () => { cancelled = true; };
   }, [currentMonth]);
 
-  // Chiudi tooltip quando si clicca fuori
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (selectedExpenseForReason && !e.target.closest('.price-chip')) {
@@ -47,73 +59,78 @@ const BarExpenses = () => {
   }, [selectedExpenseForReason]);
 
   const getMonthKey = (date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    return `${year}-${String(month).padStart(2, '0')}`;
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1;
+    return `${y}-${String(m).padStart(2, '0')}`;
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+    const d = new Date(dateString);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   };
 
-  const loadExpenses = async () => {
+  const getLabel = (key) => expenseLabels[key] || customCategories.find((c) => c.slug === key)?.name || key;
+
+  const loadCustomCategories = async () => {
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      const list = await getCustomCategories(SECTION, monthKey);
+      const arr = Array.isArray(list) ? list : [];
+      setCustomCategories(arr);
+      return arr;
+    } catch (e) {
+      console.error('Errore caricamento custom categories:', e);
+      setCustomCategories([]);
+      return [];
+    }
+  };
+
+  const loadExpenses = async (customListOverride) => {
     try {
       setLoading(true);
       const monthKey = getMonthKey(currentMonth);
+      const types = buildTypeList(customListOverride);
       const data = await getBarExpenses(monthKey);
-      
-      // Il backend restituisce un oggetto con array di oggetti { id, price }
-      const converted = {
-        kitCaffe: [],
-        beverage: [],
-        operatoreBar: []
-      };
-      
-      Object.keys(expenseLabels).forEach(key => {
-        if (data[key] && Array.isArray(data[key])) {
-          converted[key] = data[key].map(expense => ({
-            id: expense.id,
-            price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price),
-            created_at: expense.created_at,
-            reason: expense.reason || ''
-          }));
-        }
+      const converted = {};
+      const initInputs = {};
+      types.forEach(({ key }) => {
+        converted[key] = Array.isArray(data[key])
+          ? data[key].map((e) => ({
+              id: e.id,
+              price: typeof e.price === 'number' ? e.price : parseFloat(e.price),
+              created_at: e.created_at,
+              reason: e.reason || ''
+            }))
+          : [];
+        initInputs[key] = tempInputs[key] ?? '';
       });
-      
       setExpenses(converted);
+      setTempInputs((prev) => ({ ...prev, ...initInputs }));
     } catch (error) {
       console.error('Errore caricamento spese bar:', error);
-      setExpenses({
-        kitCaffe: [],
-        beverage: [],
-        operatoreBar: []
-      });
+      setExpenses({});
     } finally {
       setLoading(false);
     }
   };
 
   const handleInputChange = (key, value) => {
-    setTempInputs({
-      ...tempInputs,
-      [key]: value
-    });
+    setTempInputs((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleInputBlur = async (key) => {
+  const handleInputBlur = (key) => {
     const value = parseFloat(tempInputs[key]);
     if (!isNaN(value) && value > 0) {
-      // Mostra il popup per inserire il motivo
       setReasonModal({ isOpen: true, key, price: value });
-      setTempInputs({
-        ...tempInputs,
-        [key]: ''
-      });
+      setTempInputs((prev) => ({ ...prev, [key]: '' }));
+    }
+  };
+
+  const handleInputKeyPress = (key, e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleInputBlur(key);
     }
   };
 
@@ -122,22 +139,12 @@ const BarExpenses = () => {
     try {
       const monthKey = getMonthKey(currentMonth);
       await addBarExpense(monthKey, key, price, reason);
-      
-      // Ricarica le spese per ottenere l'ID reale
       await loadExpenses();
-      
       setReasonModal({ isOpen: false, key: null, price: 0 });
     } catch (error) {
       console.error('Errore aggiunta spesa bar:', error);
       alert('Errore nell\'aggiunta della spesa: ' + error.message);
       setReasonModal({ isOpen: false, key: null, price: 0 });
-    }
-  };
-
-  const handleInputKeyPress = (key, e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleInputBlur(key);
     }
   };
 
@@ -153,10 +160,38 @@ const BarExpenses = () => {
   };
 
   const getTotalForProduct = (key) => {
-    return expenses[key].reduce((sum, expense) => {
-      const price = typeof expense === 'number' ? expense : expense.price;
-      return sum + price;
-    }, 0);
+    return (expenses[key] || []).reduce((s, e) => s + (typeof e.price === 'number' ? e.price : parseFloat(e.price)), 0);
+  };
+
+  const calculateTotal = () => typeList.reduce((s, { key }) => s + getTotalForProduct(key), 0);
+
+  const toggleShowDetails = (key) => {
+    setShowDetails((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleAddCustomCategory = async (name) => {
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      await createCustomCategory(SECTION, monthKey, name);
+      const list = await loadCustomCategories();
+      await loadExpenses(list);
+      setCustomModalOpen(false);
+    } catch (error) {
+      console.error('Errore creazione sotto-categoria:', error);
+      alert('Errore: ' + (error.message || 'Impossibile creare la sotto-categoria'));
+    }
+  };
+
+  const handleRemoveCustomCategory = async (customId, label) => {
+    if (!window.confirm(`Eliminare la sotto-categoria "${label}"? Verranno eliminate anche tutte le spese inserite.`)) return;
+    try {
+      await deleteCustomCategory(customId);
+      const list = await loadCustomCategories();
+      await loadExpenses(list);
+    } catch (error) {
+      console.error('Errore eliminazione sotto-categoria:', error);
+      alert('Errore: ' + (error.message || 'Impossibile eliminare la sotto-categoria'));
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -164,22 +199,13 @@ const BarExpenses = () => {
   };
 
   const handleNextMonth = () => {
-    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
-    const now = new Date();
-    if (nextMonth <= now) {
-      setCurrentMonth(nextMonth);
-    }
+    const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    if (next <= new Date()) setCurrentMonth(next);
   };
 
   const canGoNext = () => {
-    const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
-    return nextMonth <= new Date();
-  };
-
-  const calculateTotal = () => {
-    return Object.keys(expenseLabels).reduce((sum, key) => {
-      return sum + getTotalForProduct(key);
-    }, 0);
+    const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    return next <= new Date();
   };
 
   const monthNames = [
@@ -187,32 +213,32 @@ const BarExpenses = () => {
     'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
   ];
 
-  const toggleShowDetails = (key) => {
-    setShowDetails({
-      ...showDetails,
-      [key]: !showDetails[key]
-    });
-  };
+  const isAdmin = auth?.role === 'superadmin';
 
   return (
     <div className="bar-expenses-container fade-in">
       <div className="bar-expenses-header">
         <h2 className="section-title">Spesa Bar</h2>
+        {isAdmin && (
+          <button
+            type="button"
+            className="add-category-btn"
+            onClick={() => setCustomModalOpen(true)}
+            aria-label="Aggiungi sotto-categoria"
+            title="Aggiungi sotto-categoria (solo questo mese)"
+          >
+            +
+          </button>
+        )}
       </div>
 
       <div className="bar-expenses-content">
         <div className="month-selector-section">
-          <button 
-            className="month-nav-button"
-            onClick={handlePreviousMonth}
-            aria-label="Mese precedente"
-          >
-            ←
-          </button>
+          <button className="month-nav-button" onClick={handlePreviousMonth} aria-label="Mese precedente">←</button>
           <h3 className="month-title">
             {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
           </h3>
-          <button 
+          <button
             className="month-nav-button"
             onClick={handleNextMonth}
             disabled={!canGoNext()}
@@ -223,19 +249,33 @@ const BarExpenses = () => {
         </div>
 
         <div className="bar-expenses-list">
-          {Object.keys(expenseLabels).map((key) => {
+          {typeList.map(({ key, label, customId }) => {
             const total = getTotalForProduct(key);
+            const list = expenses[key] || [];
             return (
               <div key={key} className="bar-expense-item">
                 <div className="bar-expense-left">
-                  <label className="bar-expense-label">{expenseLabels[key]}</label>
+                  <div className="bar-expense-label-row">
+                    <label className="bar-expense-label">{label}</label>
+                    {isAdmin && customId && (
+                      <button
+                        type="button"
+                        className="remove-category-btn"
+                        onClick={() => handleRemoveCustomCategory(customId, label)}
+                        title="Elimina sotto-categoria"
+                        aria-label="Elimina sotto-categoria"
+                      >
+                        −
+                      </button>
+                    )}
+                  </div>
                   {total > 0 && (
                     <div className="bar-expense-total-row">
                       <div className="bar-expense-total">
                         <span className="total-label-small">Totale:</span>
                         <span className="total-value">{total.toFixed(2)} €</span>
                       </div>
-                      {expenses[key].length > 0 && (
+                      {list.length > 0 && (
                         <button
                           type="button"
                           className="toggle-details-btn"
@@ -248,18 +288,26 @@ const BarExpenses = () => {
                       )}
                     </div>
                   )}
-                  {showDetails[key] && expenses[key].length > 0 && (
+                  {showDetails[key] && list.length > 0 && (
                     <div className="bar-expense-prices">
-                      {expenses[key].map((expense) => {
-                        const createdDate = expense.created_at ? formatDate(expense.created_at) : '';
+                      {list.map((expense) => {
+                        const createdDate = formatDate(expense.created_at);
                         const expenseReason = expense.reason || '';
                         return (
                           <div key={expense.id} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span 
-                                className="price-amount" 
+                              <span
+                                className="price-amount"
                                 style={{ cursor: expenseReason ? 'pointer' : 'default' }}
-                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId: expense.id, reason: expenseReason, price: expense.price, label: expenseLabels[key] })}
+                                onClick={() =>
+                                  expenseReason &&
+                                  setSelectedExpenseForReason({
+                                    expenseId: expense.id,
+                                    reason: expenseReason,
+                                    price: expense.price,
+                                    label
+                                  })
+                                }
                                 title={expenseReason ? 'Clicca per vedere il motivo' : ''}
                               >
                                 {expense.price.toFixed(2)} €
@@ -278,8 +326,15 @@ const BarExpenses = () => {
                               <div className="expense-reason-tooltip">
                                 <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Motivo:</div>
                                 <div>{selectedExpenseForReason.reason}</div>
-                                <button 
-                                  style={{ marginTop: '8px', padding: '4px 8px', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                                <button
+                                  style={{
+                                    marginTop: '8px',
+                                    padding: '4px 8px',
+                                    background: '#fff',
+                                    border: '1px solid #ccc',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                  }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedExpenseForReason(null);
@@ -299,7 +354,7 @@ const BarExpenses = () => {
                   <input
                     type="number"
                     className="bar-expense-input"
-                    value={tempInputs[key]}
+                    value={tempInputs[key] ?? ''}
                     onChange={(e) => handleInputChange(key, e.target.value)}
                     onBlur={() => handleInputBlur(key)}
                     onKeyPress={(e) => handleInputKeyPress(key, e)}
@@ -316,9 +371,7 @@ const BarExpenses = () => {
 
         <div className="bar-expenses-total">
           <div className="total-label">Totale mensile</div>
-          <div className="total-amount">
-            {calculateTotal().toFixed(2)} €
-          </div>
+          <div className="total-amount">{calculateTotal().toFixed(2)} €</div>
         </div>
       </div>
 
@@ -327,11 +380,17 @@ const BarExpenses = () => {
         onClose={() => setReasonModal({ isOpen: false, key: null, price: 0 })}
         onSave={handleSaveExpenseWithReason}
         price={reasonModal.price}
-        expenseLabel={reasonModal.key ? expenseLabels[reasonModal.key] : ''}
+        expenseLabel={reasonModal.key ? getLabel(reasonModal.key) : ''}
+      />
+
+      <CustomCategoryModal
+        isOpen={customModalOpen}
+        onClose={() => setCustomModalOpen(false)}
+        onSave={handleAddCustomCategory}
+        sectionLabel="Spesa Bar"
       />
     </div>
   );
 };
 
 export default BarExpenses;
-

@@ -1,0 +1,216 @@
+.employees-earnings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: empEarnFadeIn 0.2s ease-in;
+}
+
+@keyframes empEarnFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.employees-earnings-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 560px;
+  width: 90%;
+  max-height: 90vh;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  animation: empEarnSlideUp 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes empEarnSlideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.employees-earnings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.employees-earnings-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.employees-earnings-modal-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.employees-earnings-modal-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.employees-earnings-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.employees-earnings-empty {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 16px;
+}
+
+.employees-earnings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.employees-earnings-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #333;
+}
+
+.employees-earnings-clickable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.employees-earnings-clickable:hover {
+  background: #eef0f2;
+}
+
+.employees-earnings-employee-name,
+.employees-earnings-appointment-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.employees-earnings-appointment-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.employees-earnings-day-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.employees-earnings-day-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.employees-earnings-appointment-day {
+  font-size: 14px;
+  color: #666;
+}
+
+.employees-earnings-appointment-time {
+  font-size: 14px;
+  color: #666;
+}
+
+.employees-earnings-arrow {
+  color: #999;
+}
+
+.employees-earnings-back {
+  margin-bottom: 20px;
+}
+
+.employees-earnings-back-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.employees-earnings-back-btn:hover {
+  color: #333;
+  text-decoration: underline;
+}
+
+.employees-earnings-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.employees-earnings-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.employees-earnings-detail-row strong {
+  flex-shrink: 0;
+  width: 120px;
+  color: #333;
+}
+
+.employees-earnings-detail-row span {
+  text-align: right;
+  color: #444;
+}
+
+.employees-earnings-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 20px 24px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.employees-earnings-footer-btn {
+  padding: 10px 24px;
+  background: #000;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.employees-earnings-footer-btn:hover {
+  background: #333;
+}

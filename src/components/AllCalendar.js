@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, updateAppointment, deleteAppointment } from '../utils/api';
+import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
 import AppointmentModal from './AppointmentModal';
+import PastDayRestrictionModal from './PastDayRestrictionModal';
 import './AllCalendar.css';
 
 // Funzione per convertire snake_case a camelCase per gli appuntamenti
@@ -72,6 +74,8 @@ const AllCalendar = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
+  const [auth, setAuth] = useState(null);
+  const [pastDayModalOpen, setPastDayModalOpen] = useState(false);
   
   // Refs per accedere ai valori più recenti nei listener
   const touchStartPosRef = useRef(null);
@@ -131,6 +135,10 @@ const AllCalendar = () => {
         setLoading(false);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    setAuth(JSON.parse(localStorage.getItem('atelier-auth') || '{}'));
   }, []);
 
   useEffect(() => {
@@ -197,18 +205,19 @@ const AllCalendar = () => {
   };
 
   const handleSlotClick = async (timeSlot, employeeId, e) => {
-    // Se c'è un appuntamento selezionato per lo spostamento, spostalo qui
     if (selectedForMove) {
       e?.stopPropagation();
+      if (!canModifyAppointmentsOn(auth, selectedForMove.date)) {
+        setPastDayModalOpen(true);
+        setSelectedForMove(null);
+        return;
+      }
       try {
         const normalizedEmployeeId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
-        
-        // Normalizza la data originale
         let originalDate = selectedForMove.date;
         if (originalDate && typeof originalDate === 'string') {
           originalDate = originalDate.split('T')[0];
         }
-        
         const updatedAppointment = {
           ...selectedForMove,
           employeeId: normalizedEmployeeId,
@@ -216,13 +225,10 @@ const AllCalendar = () => {
           endTime: calculateEndTime(timeSlot, selectedForMove.serviceType),
           date: originalDate
         };
-        
         const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
         await updateAppointment(selectedForMove.id, appointmentToUpdate);
-        
         await new Promise(resolve => setTimeout(resolve, 100));
         await loadAppointments();
-        
         setSelectedForMove(null);
       } catch (error) {
         console.error('❌ Errore spostamento appuntamento:', error);
@@ -231,8 +237,11 @@ const AllCalendar = () => {
       }
       return;
     }
-    
-    // Altrimenti, apri modal per nuovo appuntamento
+
+    if (!canModifyAppointmentsOn(auth, selectedDate)) {
+      setPastDayModalOpen(true);
+      return;
+    }
     setSelectedTimeSlot(timeSlot);
     setSelectedAppointment(null);
     setSelectedEmployeeForNew(employeeId);
@@ -242,24 +251,20 @@ const AllCalendar = () => {
   const handleAppointmentClick = async (appointment, e) => {
     e.stopPropagation();
     e.preventDefault();
-    
-    // Se c'è già un appuntamento selezionato per lo spostamento, spostalo nello slot di questo appuntamento
+
     if (selectedForMove && isMobile) {
-      // Se stiamo cercando di selezionare lo stesso appuntamento, non fare nulla
-      if (selectedForMove.id === appointment.id) {
+      if (selectedForMove.id === appointment.id) return;
+      if (!canModifyAppointmentsOn(auth, selectedForMove.date)) {
+        setPastDayModalOpen(true);
+        setSelectedForMove(null);
         return;
       }
-      
-      // Altrimenti, sposta l'appuntamento selezionato nello slot di questo appuntamento
       try {
         const normalizedEmployeeId = typeof appointment.employeeId === 'string' ? parseInt(appointment.employeeId) : appointment.employeeId;
-        
-        // Normalizza la data originale
         let originalDate = selectedForMove.date;
         if (originalDate && typeof originalDate === 'string') {
           originalDate = originalDate.split('T')[0];
         }
-        
         const updatedAppointment = {
           ...selectedForMove,
           employeeId: normalizedEmployeeId,
@@ -267,13 +272,10 @@ const AllCalendar = () => {
           endTime: calculateEndTime(appointment.startTime, selectedForMove.serviceType),
           date: originalDate
         };
-        
         const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
         await updateAppointment(selectedForMove.id, appointmentToUpdate);
-        
         await new Promise(resolve => setTimeout(resolve, 100));
         await loadAppointments();
-        
         setSelectedForMove(null);
       } catch (error) {
         console.error('❌ Errore spostamento appuntamento:', error);
@@ -282,15 +284,20 @@ const AllCalendar = () => {
       }
       return;
     }
-    
-    // Se è mobile, seleziona per spostamento
+
     if (isMobile) {
-      // Su mobile, resetta prima il drag state per sicurezza
+      if (!canModifyAppointmentsOn(auth, appointment.date)) {
+        setPastDayModalOpen(true);
+        return;
+      }
       setDraggedAppointment(null);
       setIsDragging(false);
       setSelectedForMove(appointment);
     } else {
-      // Su desktop, apri modal (comportamento originale)
+      if (!canModifyAppointmentsOn(auth, appointment.date)) {
+        setPastDayModalOpen(true);
+        return;
+      }
       setSelectedAppointment(appointment);
       setSelectedTimeSlot(appointment.startTime);
       setIsModalOpen(true);
@@ -299,14 +306,21 @@ const AllCalendar = () => {
   
   const handleEditClick = (appointment, e) => {
     e.stopPropagation();
+    if (!canModifyAppointmentsOn(auth, appointment.date)) {
+      setPastDayModalOpen(true);
+      return;
+    }
     setSelectedAppointment(appointment);
     setSelectedTimeSlot(appointment.startTime);
     setIsModalOpen(true);
   };
 
   const handleDragStart = (appointment, e) => {
-    // Previeni drag su mobile
     if (isMobile) {
+      e.preventDefault();
+      return;
+    }
+    if (!canModifyAppointmentsOn(auth, appointment.date)) {
       e.preventDefault();
       return;
     }
@@ -318,17 +332,15 @@ const AllCalendar = () => {
     }
   };
 
-  // Supporto touch per mobile
   const handleTouchStart = (appointment, e) => {
     e.stopPropagation();
+    if (!canModifyAppointmentsOn(auth, appointment.date)) return;
     const touch = e.touches[0];
     const startPos = { x: touch.clientX, y: touch.clientY };
     setTouchStartPos(startPos);
     setDraggedAppointment(appointment);
     setTouchElement(e.currentTarget);
     setIsDragging(false);
-    
-    // Aggiorna i ref
     touchStartPosRef.current = startPos;
     draggedAppointmentRef.current = appointment;
     isDraggingRef.current = false;
@@ -421,32 +433,23 @@ const AllCalendar = () => {
         const employeeId = cell.getAttribute('data-employee-id');
         const timeSlot = cell.getAttribute('data-time-slot');
         
-        if (employeeId && timeSlot && currentDraggedAppointment) {
-          // Esegui il drop
+        if (employeeId && timeSlot && currentDraggedAppointment && canModifyAppointmentsOn(auth, currentDraggedAppointment.date)) {
           try {
             const normalizedEmployeeId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
-            
-            // Normalizza la data originale
             let originalDate = currentDraggedAppointment.date;
             if (originalDate && typeof originalDate === 'string') {
               originalDate = originalDate.split('T')[0];
             }
-            
             const updatedAppointment = {
               ...currentDraggedAppointment,
               employeeId: normalizedEmployeeId,
               startTime: timeSlot,
               endTime: calculateEndTime(timeSlot, currentDraggedAppointment.serviceType),
-              // Mantieni la data originale dell'appuntamento, normalizzata
               date: originalDate
             };
-            
             const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
             await updateAppointment(currentDraggedAppointment.id, appointmentToUpdate);
-            
-            // Piccolo delay per assicurarsi che il database sia aggiornato
             await new Promise(resolve => setTimeout(resolve, 100));
-            
             await loadAppointments();
           } catch (error) {
             console.error('❌ Errore aggiornamento appuntamento (drag & drop touch):', error);
@@ -465,7 +468,7 @@ const AllCalendar = () => {
     touchStartPosRef.current = null;
     draggedAppointmentRef.current = null;
     isDraggingRef.current = false;
-  }, [selectedDate]);
+  }, [selectedDate, auth]);
 
   const handleDragOver = (employeeId, timeSlot, e) => {
     e.preventDefault();
@@ -483,35 +486,29 @@ const AllCalendar = () => {
   const handleDrop = async (targetEmployeeId, targetTimeSlot, e) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (!draggedAppointment) return;
-
+    if (!canModifyAppointmentsOn(auth, draggedAppointment.date)) {
+      setDraggedAppointment(null);
+      setDragOverCell(null);
+      return;
+    }
     try {
       const normalizedEmployeeId = typeof targetEmployeeId === 'string' ? parseInt(targetEmployeeId) : targetEmployeeId;
-      
-      // Normalizza la data originale
       let originalDate = draggedAppointment.date;
       if (originalDate && typeof originalDate === 'string') {
         originalDate = originalDate.split('T')[0];
       }
-      
       const updatedAppointment = {
         ...draggedAppointment,
         employeeId: normalizedEmployeeId,
         startTime: targetTimeSlot,
         endTime: calculateEndTime(targetTimeSlot, draggedAppointment.serviceType),
-        // Mantieni la data originale dell'appuntamento, normalizzata
         date: originalDate
       };
-      
       const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
       await updateAppointment(draggedAppointment.id, appointmentToUpdate);
-      
-      // Piccolo delay per assicurarsi che il database sia aggiornato
       await new Promise(resolve => setTimeout(resolve, 100));
-      
       await loadAppointments();
-      
       setDraggedAppointment(null);
       setDragOverCell(null);
     } catch (error) {
@@ -555,18 +552,18 @@ const AllCalendar = () => {
   };
 
   const handleSaveAppointment = async (appointmentData) => {
-    if (isSaving) return; // Previeni chiamate multiple
-    
+    if (isSaving) return;
+    if (selectedAppointment && !canModifyAppointmentsOn(auth, selectedAppointment.date)) return;
+    if (!selectedAppointment && !canModifyAppointmentsOn(auth, selectedDate)) return;
+
     setIsSaving(true);
     try {
       if (selectedAppointment) {
-        // Modifica appuntamento esistente
         const appointmentToUpdate = {
           ...appointmentToSnakeCase({ ...selectedAppointment, ...appointmentData, employeeId: selectedAppointment.employeeId, date: selectedAppointment.date })
         };
         await updateAppointment(selectedAppointment.id, appointmentToUpdate);
       } else {
-        // Nuovo appuntamento
         const newAppointment = {
           ...appointmentToSnakeCase({
             ...appointmentData,
@@ -596,6 +593,7 @@ const AllCalendar = () => {
   };
 
   const handleDeleteAppointment = async (appointmentId) => {
+    if (selectedAppointment && !canModifyAppointmentsOn(auth, selectedAppointment.date)) return;
     try {
       await deleteAppointment(appointmentId);
       await loadAppointments();
@@ -704,13 +702,13 @@ const AllCalendar = () => {
                           {slotAppointments.map(appointment => {
                             const employeeColor = getEmployeeColor(appointment.employeeId);
                             const rgbColor = hexToRgb(employeeColor);
-                            
+                            const canModify = canModifyAppointmentsOn(auth, appointment.date);
                             return (
                             <div
                               key={appointment.id}
                               data-appointment-id={appointment.id}
                               className={`calendar-appointment ${draggedAppointment?.id === appointment.id ? 'dragging' : ''} ${selectedForMove?.id === appointment.id ? 'selected-for-move' : ''} ${selectedForMove && isMobile && selectedForMove.id !== appointment.id ? 'can-receive-move' : ''}`}
-                              draggable={!isMobile}
+                              draggable={!isMobile && canModify}
                               onDragStart={!isMobile ? (e) => handleDragStart(appointment, e) : (e) => e.preventDefault()}
                               onDragEnd={!isMobile ? handleDragEnd : undefined}
                               onDrag={(e) => { if (isMobile) e.preventDefault(); }}
@@ -722,6 +720,7 @@ const AllCalendar = () => {
                                 borderColor: `rgba(${rgbColor}, 0.4)`
                               }}
                             >
+                              {canModify && (
                               <button
                                 className="appointment-edit-btn"
                                 onClick={(e) => handleEditClick(appointment, e)}
@@ -729,6 +728,7 @@ const AllCalendar = () => {
                               >
                                 ✏️
                               </button>
+                              )}
                               <div className="calendar-appointment-name">{appointment.clientName}</div>
                               <div className="calendar-appointment-service">{appointment.serviceType}</div>
                               <div className="calendar-appointment-time">
@@ -778,12 +778,14 @@ const AllCalendar = () => {
               setSelectedAppointment(null);
               setSelectedTimeSlot(null);
               setSelectedEmployeeForNew(null);
-              setSelectedForMove(null); // Reset selezione quando chiudi modal
+              setSelectedForMove(null);
             }
           }}
           isLoading={isSaving}
         />
       )}
+
+      <PastDayRestrictionModal isOpen={pastDayModalOpen} onClose={() => setPastDayModalOpen(false)} />
     </div>
   );
 };

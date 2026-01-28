@@ -3,6 +3,18 @@ const router = express.Router();
 const pool = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 
+const getTodayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const isPastDate = (dateStr) => {
+  if (!dateStr) return false;
+  const s = String(dateStr).split('T')[0];
+  return s < getTodayLocal();
+};
+const canModifyAppointmentsOn = (user, dateStr) =>
+  user?.role === 'superadmin' || !isPastDate(dateStr);
+
 // Ottieni tutti gli appuntamenti
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -42,13 +54,14 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold, recurrenceGroupId, isRecurring } = req.body;
     
-    // Normalizza la data per PostgreSQL (assicura formato YYYY-MM-DD)
     let normalizedDate = date;
     if (normalizedDate && typeof normalizedDate === 'string') {
-      normalizedDate = normalizedDate.split('T')[0]; // Rimuove eventuali timestamp
+      normalizedDate = normalizedDate.split('T')[0];
     }
-    
-    // Controllo duplicati: verifica se esiste già un appuntamento identico
+    if (!canModifyAppointmentsOn(req.user, normalizedDate)) {
+      return res.status(403).json({ error: 'Solo l\'admin può creare o modificare appuntamenti nei giorni precedenti.' });
+    }
+    // Controllo duplicati
     const [existing] = await pool.query(
       'SELECT id FROM appointments WHERE employee_id = ? AND date = ? AND start_time = ? AND client_name = ? AND service_type = ?',
       [employeeId, normalizedDate, startTime, clientName, serviceType]
@@ -92,7 +105,16 @@ router.post('/batch', authMiddleware, async (req, res) => {
       client.release();
       return res.status(400).json({ error: 'Devi fornire un array di appuntamenti' });
     }
-    
+    if (req.user?.role !== 'superadmin') {
+      for (const apt of appointments) {
+        const d = apt.date ? String(apt.date).split('T')[0] : '';
+        if (isPastDate(d)) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(403).json({ error: 'Solo l\'admin può creare o modificare appuntamenti nei giorni precedenti.' });
+        }
+      }
+    }
     const createdIds = [];
     
     // Helper per convertire ? placeholders a $1, $2, $3 per PostgreSQL
@@ -180,18 +202,29 @@ router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold, isRecurring } = req.body;
-    
-    // Normalizza la data per PostgreSQL (assicura formato YYYY-MM-DD)
+
+    const [current] = await pool.query('SELECT date, recurrence_group_id, is_recurring FROM appointments WHERE id = ?', [id]);
+    if (!current || current.length === 0) {
+      return res.status(404).json({ error: 'Appuntamento non trovato' });
+    }
+    let aptDate = current[0].date;
+    if (aptDate instanceof Date) {
+      aptDate = aptDate.toISOString().split('T')[0];
+    } else if (aptDate && typeof aptDate === 'string') {
+      aptDate = aptDate.split('T')[0];
+    }
+    if (!canModifyAppointmentsOn(req.user, aptDate)) {
+      return res.status(403).json({ error: 'Solo l\'admin può creare o modificare appuntamenti nei giorni precedenti.' });
+    }
+
     let normalizedDate = date;
     if (normalizedDate && typeof normalizedDate === 'string') {
-      normalizedDate = normalizedDate.split('T')[0]; // Rimuove eventuali timestamp
+      normalizedDate = normalizedDate.split('T')[0];
     }
-    
-    // Recupera l'appuntamento corrente per vedere se fa parte di una serie ricorrente
-    const [current] = await pool.query('SELECT recurrence_group_id, is_recurring FROM appointments WHERE id = ?', [id]);
-    const hasRecurrenceGroup = current[0]?.recurrence_group_id;
-    const wasRecurring = current[0]?.is_recurring || hasRecurrenceGroup;
-    
+
+    const hasRecurrenceGroup = current[0].recurrence_group_id;
+    const wasRecurring = current[0].is_recurring || hasRecurrenceGroup;
+
     // Se isRecurring è false e l'appuntamento faceva parte di una serie ricorrente,
     // cancelliamo tutti gli appuntamenti futuri della stessa serie (rispetto alla data odierna)
     if ((isRecurring === false || isRecurring === undefined) && wasRecurring && hasRecurrenceGroup) {
@@ -230,6 +263,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
+    const [rows] = await pool.query('SELECT date FROM appointments WHERE id = ?', [id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Appuntamento non trovato' });
+    }
+    let aptDate = rows[0].date;
+    if (aptDate instanceof Date) {
+      aptDate = aptDate.toISOString().split('T')[0];
+    } else if (aptDate && typeof aptDate === 'string') {
+      aptDate = aptDate.split('T')[0];
+    }
+    if (!canModifyAppointmentsOn(req.user, aptDate)) {
+      return res.status(403).json({ error: 'Solo l\'admin può creare o modificare appuntamenti nei giorni precedenti.' });
+    }
     await pool.query('DELETE FROM appointments WHERE id = ?', [id]);
     res.json({ message: 'Appuntamento eliminato' });
   } catch (error) {

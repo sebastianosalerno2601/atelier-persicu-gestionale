@@ -108,9 +108,12 @@ export const deleteEmployee = (id) => apiCall(`/employees/${id}`, {
 
 // Utilities API
 export const getUtilities = (monthKey) => apiCall(`/utilities/${monthKey}`);
-export const saveUtilities = (monthKey, utilities) => apiCall(`/utilities/${monthKey}`, {
+export const addUtilityExpense = (monthKey, utilityType, price, reason) => apiCall(`/utilities/${monthKey}/expense`, {
   method: 'POST',
-  body: JSON.stringify(utilities)
+  body: JSON.stringify({ type: utilityType, price, reason: reason || '' })
+});
+export const deleteUtilityExpense = (monthKey, expenseId) => apiCall(`/utilities/${monthKey}/${expenseId}`, {
+  method: 'DELETE'
 });
 
 // Product Expenses API
@@ -135,6 +138,17 @@ export const addBarExpense = (monthKey, expenseType, price, reason) => apiCall(`
   body: JSON.stringify({ expenseType, price, reason: reason || '' })
 });
 export const deleteBarExpense = (monthKey, expenseId) => apiCall(`/bar-expenses/${monthKey}/${expenseId}`, {
+  method: 'DELETE'
+});
+
+// Custom categories (sotto-categorie per mese, solo admin)
+export const getCustomCategories = (section, monthKey) =>
+  apiCall(`/custom-categories?section=${encodeURIComponent(section)}&monthKey=${encodeURIComponent(monthKey)}`);
+export const createCustomCategory = (section, monthKey, name) => apiCall('/custom-categories', {
+  method: 'POST',
+  body: JSON.stringify({ section, monthKey, name })
+});
+export const deleteCustomCategory = (id) => apiCall(`/custom-categories/${id}`, {
   method: 'DELETE'
 });
 

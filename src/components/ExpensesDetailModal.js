@@ -52,6 +52,14 @@ const ExpensesDetailModal = ({ isOpen, onClose, category, expenses, monthKey }) 
     operatoreBar: 'Operatore bar'
   };
 
+  const utilityLabels = {
+    pigione: 'Pigione',
+    acqua: 'Acqua',
+    luce: 'Luce',
+    spazzatura: 'Spazzatura',
+    gas: 'Gas'
+  };
+
   return (
     <div className="expenses-detail-modal-overlay" onClick={onClose}>
       <div className="expenses-detail-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -93,7 +101,12 @@ const ExpensesDetailModal = ({ isOpen, onClose, category, expenses, monthKey }) 
                   )}
                   {expense.type && (
                     <div className="expense-detail-type">
-                      <strong>Tipo:</strong> {expense.type === 'ordinaria' ? 'Manutenzione ordinaria' : 'Manutenzione straordinaria'}
+                      <strong>Tipo:</strong> {expense.type === 'ordinaria' ? 'Manutenzione ordinaria' : expense.type === 'straordinaria' ? 'Manutenzione straordinaria' : expense.type}
+                    </div>
+                  )}
+                  {expense.utility_type && (
+                    <div className="expense-detail-type">
+                      <strong>Tipo:</strong> {utilityLabels[expense.utility_type] || expense.utility_type}
                     </div>
                   )}
                 </div>

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
 import { getPrice, generateWeeklyRecurrences, addDays } from '../utils/storage';
+import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
 import AppointmentModal from './AppointmentModal';
+import PastDayRestrictionModal from './PastDayRestrictionModal';
 import './Appointments.css';
 
 // Funzione per convertire snake_case a camelCase per gli appuntamenti
@@ -71,6 +73,7 @@ const Appointments = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [isUnpaidModalOpen, setIsUnpaidModalOpen] = useState(false);
+  const [pastDayModalOpen, setPastDayModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [auth, setAuth] = useState(null);
@@ -213,23 +216,31 @@ const Appointments = () => {
   };
 
   const handleTimeSlotClick = (timeSlot) => {
-    // Click sullo slot per creare nuovo appuntamento
+    if (!canModifyAppointmentsOn(auth, selectedDate)) {
+      setPastDayModalOpen(true);
+      return;
+    }
     setSelectedTimeSlot(timeSlot);
     setSelectedAppointment(null);
     setIsModalOpen(true);
   };
 
   const handleAppointmentClick = (appointment, e) => {
-    // Click su un appuntamento specifico per modificarlo
     e.stopPropagation();
+    if (!canModifyAppointmentsOn(auth, appointment.date)) {
+      setPastDayModalOpen(true);
+      return;
+    }
     setSelectedTimeSlot(appointment.startTime);
     setSelectedAppointment(appointment);
     setIsModalOpen(true);
   };
 
   const handleSaveAppointment = async (appointmentData) => {
-    if (isSaving) return; // Previeni chiamate multiple
-    
+    if (isSaving) return;
+    if (selectedAppointment && !canModifyAppointmentsOn(auth, selectedAppointment.date)) return;
+    if (!selectedAppointment && !canModifyAppointmentsOn(auth, selectedDate)) return;
+
     setIsSaving(true);
     try {
       if (selectedAppointment) {
@@ -302,6 +313,7 @@ const Appointments = () => {
   };
 
   const handleDeleteAppointment = async (appointmentId) => {
+    if (selectedAppointment && !canModifyAppointmentsOn(auth, selectedAppointment.date)) return;
     try {
       await deleteAppointment(appointmentId);
       await loadAppointments();
@@ -358,6 +370,10 @@ const Appointments = () => {
   };
 
   const handleUnpaidClick = (appointment) => {
+    if (!canModifyAppointmentsOn(auth, appointment.date)) {
+      setPastDayModalOpen(true);
+      return;
+    }
     setSelectedAppointment(appointment);
     setSelectedTimeSlot(appointment.startTime);
     setIsModalOpen(true);
@@ -901,6 +917,8 @@ const Appointments = () => {
           </div>
         </div>
       )}
+
+      <PastDayRestrictionModal isOpen={pastDayModalOpen} onClose={() => setPastDayModalOpen(false)} />
     </div>
   );
 };

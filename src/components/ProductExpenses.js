@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { getProductExpenses, addProductExpense, deleteProductExpense, getProductExpensesNotes, saveProductExpensesNotes } from '../utils/api';
+import { getProductExpenses, addProductExpense, deleteProductExpense, getProductExpensesNotes, saveProductExpensesNotes, getCustomCategories, createCustomCategory, deleteCustomCategory } from '../utils/api';
 import ExpenseReasonModal from './ExpenseReasonModal';
+import CustomCategoryModal from './CustomCategoryModal';
 import './ProductExpenses.css';
+
+const SECTION = 'product';
 
 const expenseLabels = {
   asciugamani: 'Asciugamani',
@@ -23,55 +26,40 @@ const expenseLabels = {
 };
 
 const ProductExpenses = () => {
+  const [auth, setAuth] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  // Modificato per gestire spese con ID: { id, price }
-  const [expenses, setExpenses] = useState({
-    asciugamani: [],
-    shampooDaBanco: [],
-    shampooDaVenditaSpecializzato: [],
-    shampooDaVendita500ml: [],
-    cremaDaBarba: [],
-    lamette: [],
-    lacca: [],
-    cartaCollo: [],
-    cera: [],
-    dopoBarba: [],
-    cremaRicci: [],
-    rotolone: [],
-    bicchieriCarta: [],
-    pulizieNegozio: [],
-    spazzole: [],
-    spesaProdottiGenerali: []
-  });
-
-  const [tempInputs, setTempInputs] = useState({
-    asciugamani: '',
-    shampooDaBanco: '',
-    shampooDaVenditaSpecializzato: '',
-    shampooDaVendita500ml: '',
-    cremaDaBarba: '',
-    lamette: '',
-    lacca: '',
-    cartaCollo: '',
-    cera: '',
-    dopoBarba: '',
-    cremaRicci: '',
-    rotolone: '',
-    bicchieriCarta: '',
-    pulizieNegozio: '',
-    spazzole: '',
-    spesaProdottiGenerali: ''
-  });
-
+  const [customCategories, setCustomCategories] = useState([]);
+  const [expenses, setExpenses] = useState({});
+  const [tempInputs, setTempInputs] = useState({});
   const [showDetails, setShowDetails] = useState({});
   const [showNotes, setShowNotes] = useState(false);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [reasonModal, setReasonModal] = useState({ isOpen: false, key: null, price: 0 });
   const [selectedExpenseForReason, setSelectedExpenseForReason] = useState(null);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+
+  const buildTypeList = (customList) => {
+    const cust = customList ?? customCategories;
+    return [
+      ...Object.entries(expenseLabels).map(([key, label]) => ({ key, label })),
+      ...(Array.isArray(cust) ? cust : []).map((c) => ({ key: c.slug, label: c.name, customId: c.id }))
+    ];
+  };
+  const typeList = buildTypeList();
 
   useEffect(() => {
-    loadExpenses();
+    setAuth(JSON.parse(localStorage.getItem('atelier-auth') || '{}'));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await loadCustomCategories();
+      if (cancelled) return;
+      await loadExpenses(list);
+    })();
+    return () => { cancelled = true; };
   }, [currentMonth]);
 
   // Chiudi tooltip quando si clicca fuori
@@ -102,77 +90,52 @@ const ProductExpenses = () => {
     return `${day}/${month}/${year}`;
   };
 
-  const loadExpenses = async () => {
+  const getLabel = (key) => expenseLabels[key] || customCategories.find((c) => c.slug === key)?.name || key;
+
+  const loadCustomCategories = async () => {
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      const list = await getCustomCategories(SECTION, monthKey);
+      const arr = Array.isArray(list) ? list : [];
+      setCustomCategories(arr);
+      return arr;
+    } catch (e) {
+      console.error('Errore caricamento custom categories:', e);
+      setCustomCategories([]);
+      return [];
+    }
+  };
+
+  const loadExpenses = async (customListOverride) => {
     try {
       setLoading(true);
       const monthKey = getMonthKey(currentMonth);
-      
-      // Carica le spese prodotti
+      const types = buildTypeList(customListOverride);
       const expensesData = await getProductExpenses(monthKey);
-      
-      // Inizializza tutte le categorie
-      const converted = {
-        asciugamani: [],
-        shampooDaBanco: [],
-        shampooDaVenditaSpecializzato: [],
-        shampooDaVendita500ml: [],
-        cremaDaBarba: [],
-        lamette: [],
-        lacca: [],
-        cartaCollo: [],
-        cera: [],
-        dopoBarba: [],
-        cremaRicci: [],
-        rotolone: [],
-        bicchieriCarta: [],
-        pulizieNegozio: [],
-        spazzole: [],
-        spesaProdottiGenerali: []
-      };
-      
-      // Converti i dati dal backend nel formato del frontend
-      Object.keys(expenseLabels).forEach(key => {
-        if (expensesData[key] && Array.isArray(expensesData[key])) {
-          converted[key] = expensesData[key].map(expense => ({
-            id: expense.id,
-            price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price),
-            created_at: expense.created_at,
-            reason: expense.reason || ''
-          }));
-        }
+      const converted = {};
+      const initInputs = {};
+      types.forEach(({ key }) => {
+        converted[key] = Array.isArray(expensesData[key])
+          ? expensesData[key].map((e) => ({
+              id: e.id,
+              price: typeof e.price === 'number' ? e.price : parseFloat(e.price),
+              created_at: e.created_at,
+              reason: e.reason || ''
+            }))
+          : [];
+        initInputs[key] = tempInputs[key] ?? '';
       });
-      
       setExpenses(converted);
-      
-      // Carica le note
+      setTempInputs((prev) => ({ ...prev, ...initInputs }));
       try {
         const notesData = await getProductExpensesNotes(monthKey);
         setNotes(notesData.notes || '');
-      } catch (error) {
-        console.error('Errore caricamento note:', error);
+      } catch (e) {
         setNotes('');
       }
     } catch (error) {
       console.error('Errore caricamento spese prodotti:', error);
-      // Inizializza con valori vuoti
-      setExpenses({
-        asciugamani: [],
-        shampooDaBanco: [],
-        shampooDaVenditaSpecializzato: [],
-        shampooDaVendita500ml: [],
-        cremaDaBarba: [],
-        lamette: [],
-        lacca: [],
-        cartaCollo: [],
-        cera: [],
-        dopoBarba: [],
-        cremaRicci: [],
-        rotolone: [],
-        bicchieriCarta: [],
-        pulizieNegozio: [],
-        spazzole: [],
-        spesaProdottiGenerali: []
-      });
+      setExpenses({});
       setNotes('');
     } finally {
       setLoading(false);
@@ -180,36 +143,25 @@ const ProductExpenses = () => {
   };
 
   const handleInputChange = (key, value) => {
-    setTempInputs({
-      ...tempInputs,
-      [key]: value
-    });
+    setTempInputs((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleInputBlur = async (key) => {
     const value = parseFloat(tempInputs[key]);
     if (!isNaN(value) && value > 0) {
-      // Mostra il popup solo per "spesa prodotti generali"
       if (key === 'spesaProdottiGenerali') {
         setReasonModal({ isOpen: true, key, price: value });
       } else {
-        // Per gli altri prodotti, salva direttamente senza motivo
         try {
           const monthKey = getMonthKey(currentMonth);
           await addProductExpense(monthKey, key, value, '');
-          
-          // Ricarica le spese per ottenere l'ID reale
           await loadExpenses();
         } catch (error) {
           console.error('Errore aggiunta spesa prodotto:', error);
           alert('Errore nell\'aggiunta della spesa: ' + error.message);
         }
       }
-      
-      setTempInputs({
-        ...tempInputs,
-        [key]: ''
-      });
+      setTempInputs((prev) => ({ ...prev, [key]: '' }));
     }
   };
 
@@ -249,10 +201,7 @@ const ProductExpenses = () => {
   };
 
   const toggleShowDetails = (key) => {
-    setShowDetails({
-      ...showDetails,
-      [key]: !showDetails[key]
-    });
+    setShowDetails((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleShowNotes = () => {
@@ -273,10 +222,35 @@ const ProductExpenses = () => {
   };
 
   const getTotalForProduct = (key) => {
-    return expenses[key].reduce((sum, expense) => {
+    return (expenses[key] || []).reduce((sum, expense) => {
       const price = typeof expense === 'number' ? expense : expense.price;
       return sum + price;
     }, 0);
+  };
+
+  const handleAddCustomCategory = async (name) => {
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      await createCustomCategory(SECTION, monthKey, name);
+      const list = await loadCustomCategories();
+      await loadExpenses(list);
+      setCustomModalOpen(false);
+    } catch (error) {
+      console.error('Errore creazione sotto-categoria:', error);
+      alert('Errore: ' + (error.message || 'Impossibile creare la sotto-categoria'));
+    }
+  };
+
+  const handleRemoveCustomCategory = async (customId, label) => {
+    if (!window.confirm(`Eliminare la sotto-categoria "${label}"? Verranno eliminate anche tutte le spese inserite.`)) return;
+    try {
+      await deleteCustomCategory(customId);
+      const list = await loadCustomCategories();
+      await loadExpenses(list);
+    } catch (error) {
+      console.error('Errore eliminazione sotto-categoria:', error);
+      alert('Errore: ' + (error.message || 'Impossibile eliminare la sotto-categoria'));
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -297,9 +271,7 @@ const ProductExpenses = () => {
   };
 
   const calculateTotal = () => {
-    return Object.keys(expenseLabels).reduce((sum, key) => {
-      return sum + getTotalForProduct(key);
-    }, 0);
+    return typeList.reduce((sum, { key }) => sum + getTotalForProduct(key), 0);
   };
 
   const monthNames = [
@@ -307,11 +279,23 @@ const ProductExpenses = () => {
     'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
   ];
 
+  const isAdmin = auth?.role === 'superadmin';
 
   return (
     <div className="product-expenses-container fade-in">
       <div className="product-expenses-header">
         <h2 className="section-title">Spese Prodotti</h2>
+        {isAdmin && (
+          <button
+            type="button"
+            className="add-category-btn"
+            onClick={() => setCustomModalOpen(true)}
+            aria-label="Aggiungi sotto-categoria"
+            title="Aggiungi sotto-categoria (solo questo mese)"
+          >
+            +
+          </button>
+        )}
       </div>
 
       <div className="product-expenses-content">
@@ -337,19 +321,33 @@ const ProductExpenses = () => {
         </div>
 
         <div className="product-expenses-list">
-          {Object.keys(expenseLabels).filter(key => key !== 'spesaProdottiGenerali').map((key) => {
+          {typeList.filter(({ key }) => key !== 'spesaProdottiGenerali').map(({ key, label, customId }) => {
             const total = getTotalForProduct(key);
+            const list = expenses[key] || [];
             return (
               <div key={key} className="product-expense-item">
                 <div className="product-expense-left">
-                  <label className="product-expense-label">{expenseLabels[key]}</label>
+                  <div className="product-expense-label-row">
+                    <label className="product-expense-label">{label}</label>
+                    {isAdmin && customId && (
+                      <button
+                        type="button"
+                        className="remove-category-btn"
+                        onClick={() => handleRemoveCustomCategory(customId, label)}
+                        title="Elimina sotto-categoria"
+                        aria-label="Elimina sotto-categoria"
+                      >
+                        −
+                      </button>
+                    )}
+                  </div>
                   {total > 0 && (
                     <div className="product-expense-total-row">
                       <div className="product-expense-total">
                         <span className="total-label-small">Totale:</span>
                         <span className="total-value">{total.toFixed(2)} €</span>
                       </div>
-                      {expenses[key].length > 0 && (
+                      {list.length > 0 && (
                         <button
                           type="button"
                           className="toggle-details-btn"
@@ -362,20 +360,20 @@ const ProductExpenses = () => {
                       )}
                     </div>
                   )}
-                  {showDetails[key] && expenses[key].length > 0 && (
+                  {showDetails[key] && list.length > 0 && (
                     <div className="product-expense-prices">
-                      {expenses[key].map((expense) => {
+                      {list.map((expense) => {
                         const price = typeof expense === 'number' ? expense : expense.price;
-                        const expenseId = typeof expense === 'number' ? `temp-${key}-${expenses[key].indexOf(expense)}` : expense.id;
+                        const expenseId = typeof expense === 'number' ? `temp-${key}-${list.indexOf(expense)}` : expense.id;
                         const createdDate = typeof expense === 'object' && expense.created_at ? formatDate(expense.created_at) : '';
                         const expenseReason = typeof expense === 'object' && expense.reason ? expense.reason : '';
                         return (
                           <div key={expenseId} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span 
-                                className="price-amount" 
+                              <span
+                                className="price-amount"
                                 style={{ cursor: expenseReason ? 'pointer' : 'default' }}
-                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId, reason: expenseReason, price, label: expenseLabels[key] })}
+                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId, reason: expenseReason, price, label })}
                                 title={expenseReason ? 'Clicca per vedere il motivo' : ''}
                               >
                                 {price.toFixed(2)} €
@@ -394,7 +392,7 @@ const ProductExpenses = () => {
                               <div className="expense-reason-tooltip">
                                 <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Motivo:</div>
                                 <div>{selectedExpenseForReason.reason}</div>
-                                <button 
+                                <button
                                   style={{ marginTop: '8px', padding: '4px 8px', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -415,7 +413,7 @@ const ProductExpenses = () => {
                   <input
                     type="number"
                     className="product-expense-input"
-                    value={tempInputs[key]}
+                    value={tempInputs[key] ?? ''}
                     onChange={(e) => handleInputChange(key, e.target.value)}
                     onBlur={() => handleInputBlur(key)}
                     onKeyPress={(e) => handleInputKeyPress(key, e)}
@@ -433,6 +431,7 @@ const ProductExpenses = () => {
           {(() => {
             const key = 'spesaProdottiGenerali';
             const total = getTotalForProduct(key);
+            const list = expenses[key] || [];
             return (
               <div key={key} className="product-expense-item product-expense-general">
                 <div className="product-expense-left">
@@ -444,7 +443,7 @@ const ProductExpenses = () => {
                         <span className="total-value">{total.toFixed(2)} €</span>
                       </div>
                       <div className="product-expense-buttons">
-                        {expenses[key].length > 0 && (
+                        {list.length > 0 && (
                           <button
                             type="button"
                             className="toggle-details-btn"
@@ -480,18 +479,18 @@ const ProductExpenses = () => {
                       </button>
                     </div>
                   )}
-                  {showDetails[key] && expenses[key].length > 0 && (
+                  {showDetails[key] && list.length > 0 && (
                     <div className="product-expense-prices">
-                      {expenses[key].map((expense) => {
+                      {list.map((expense) => {
                         const price = typeof expense === 'number' ? expense : expense.price;
-                        const expenseId = typeof expense === 'number' ? `temp-${key}-${expenses[key].indexOf(expense)}` : expense.id;
+                        const expenseId = typeof expense === 'number' ? `temp-${key}-${list.indexOf(expense)}` : expense.id;
                         const createdDate = typeof expense === 'object' && expense.created_at ? formatDate(expense.created_at) : '';
                         const expenseReason = typeof expense === 'object' && expense.reason ? expense.reason : '';
                         return (
                           <div key={expenseId} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span 
-                                className="price-amount" 
+                              <span
+                                className="price-amount"
                                 style={{ cursor: expenseReason ? 'pointer' : 'default' }}
                                 onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId, reason: expenseReason, price, label: expenseLabels[key] })}
                                 title={expenseReason ? 'Clicca per vedere il motivo' : ''}
@@ -544,7 +543,7 @@ const ProductExpenses = () => {
                   <input
                     type="number"
                     className="product-expense-input"
-                    value={tempInputs[key]}
+                    value={tempInputs[key] ?? ''}
                     onChange={(e) => handleInputChange(key, e.target.value)}
                     onBlur={() => handleInputBlur(key)}
                     onKeyPress={(e) => handleInputKeyPress(key, e)}
@@ -572,7 +571,14 @@ const ProductExpenses = () => {
         onClose={() => setReasonModal({ isOpen: false, key: null, price: 0 })}
         onSave={handleSaveExpenseWithReason}
         price={reasonModal.price}
-        expenseLabel={reasonModal.key ? expenseLabels[reasonModal.key] : ''}
+        expenseLabel={reasonModal.key ? getLabel(reasonModal.key) : ''}
+      />
+
+      <CustomCategoryModal
+        isOpen={customModalOpen}
+        onClose={() => setCustomModalOpen(false)}
+        onSave={handleAddCustomCategory}
+        sectionLabel="Spese Prodotti"
       />
     </div>
   );

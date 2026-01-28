@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getUtilities, getBarExpenses, getMaintenance, getAppointments, getProductExpenses } from '../utils/api';
+import { getUtilities, getBarExpenses, getMaintenance, getAppointments, getProductExpenses, getEmployees } from '../utils/api';
 import { getPrice } from '../utils/storage';
 import ExpensesDetailModal from './ExpensesDetailModal';
+import EmployeesEarningsModal from './EmployeesEarningsModal';
 import './TotalExpenses.css';
 
 const TotalExpenses = () => {
@@ -17,6 +18,9 @@ const TotalExpenses = () => {
   const [netProfit, setNetProfit] = useState(0);
   const [detailModal, setDetailModal] = useState({ isOpen: false, category: null, expenses: [] });
   const [allExpensesData, setAllExpensesData] = useState({});
+  const [employees, setEmployees] = useState([]);
+  const [monthAppointments, setMonthAppointments] = useState([]);
+  const [employeesModalOpen, setEmployeesModalOpen] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -33,22 +37,24 @@ const TotalExpenses = () => {
       setLoading(true);
       const monthKey = getMonthKey(currentMonth);
       
-      // Carica tutte le spese in parallelo
-      const [utilities, barExpenses, maintenance, productExpenses, appointments] = await Promise.all([
+      const [utilities, barExpenses, maintenance, productExpenses, appointments, employeesData] = await Promise.all([
         getUtilities(monthKey),
         getBarExpenses(monthKey),
         getMaintenance(monthKey),
         getProductExpenses(monthKey),
-        getAppointments()
+        getAppointments(),
+        getEmployees()
       ]);
+      setEmployees(Array.isArray(employeesData) ? employeesData : []);
 
-      // Calcola totale utenze
-      const utilitiesSum = 
-        (parseFloat(utilities.pigione) || 0) +
-        (parseFloat(utilities.acqua) || 0) +
-        (parseFloat(utilities.luce) || 0) +
-        (parseFloat(utilities.spazzatura) || 0) +
-        (parseFloat(utilities.gas) || 0);
+      // Calcola totale utenze (nuova struttura: { expenses: { pigione: [...], ... } })
+      let utilitiesSum = 0;
+      const utilsExp = utilities?.expenses || {};
+      Object.values(utilsExp).forEach((arr) => {
+        if (Array.isArray(arr)) {
+          arr.forEach((e) => { utilitiesSum += parseFloat(e.price) || 0; });
+        }
+      });
       setUtilitiesTotal(utilitiesSum);
 
       // Calcola totale spese bar
@@ -98,22 +104,18 @@ const TotalExpenses = () => {
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth();
       
-      const monthAppointments = (appointments || []).filter(apt => {
-        // Gestisce sia snake_case che camelCase
+      const filtered = (appointments || []).filter(apt => {
         const aptDate = apt.date || apt.appointment_date;
         const aptDateStr = aptDate ? aptDate.split('T')[0] : aptDate;
         const aptDateObj = new Date(aptDateStr);
-        
         const paymentMethod = apt.payment_method || apt.paymentMethod;
-        const serviceType = apt.service_type || apt.serviceType;
-        
-        // Solo appuntamenti pagati con carta o contanti del mese corrente
-        return aptDateObj.getFullYear() === year && 
+        return aptDateObj.getFullYear() === year &&
                aptDateObj.getMonth() === month &&
                (paymentMethod === 'carta' || paymentMethod === 'contanti');
       });
+      setMonthAppointments(filtered);
 
-      const totalRevenue = monthAppointments.reduce((sum, apt) => {
+      const totalRevenue = filtered.reduce((sum, apt) => {
         const serviceType = apt.service_type || apt.serviceType;
         return sum + (getPrice(serviceType) || 0);
       }, 0);
@@ -150,63 +152,76 @@ const TotalExpenses = () => {
   };
 
   const handleCategoryClick = (category) => {
-    const monthKey = getMonthKey(currentMonth);
     let expenses = [];
 
     switch(category) {
       case 'Manutenzioni': {
         const maintenanceExpenses = allExpensesData.maintenance?.expenses || allExpensesData.maintenance || {};
-        Object.values(maintenanceExpenses).forEach(expenseArray => {
+        Object.entries(maintenanceExpenses).forEach(([key, expenseArray]) => {
           if (Array.isArray(expenseArray)) {
-            expenses = expenses.concat(expenseArray.map(exp => ({
-              ...exp,
-              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0
-            })));
+            expenseArray.forEach((exp) => {
+              expenses.push({
+                ...exp,
+                id: exp.id,
+                price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0,
+                type: key,
+                created_at: exp.created_at,
+                reason: exp.reason || ''
+              });
+            });
           }
         });
         break;
       }
       case 'Spese Bar': {
-        Object.values(allExpensesData.barExpenses || {}).forEach(expenseArray => {
+        Object.entries(allExpensesData.barExpenses || {}).forEach(([key, expenseArray]) => {
           if (Array.isArray(expenseArray)) {
-            expenses = expenses.concat(expenseArray.map(exp => ({
-              ...exp,
-              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0
-            })));
+            expenseArray.forEach((exp) => {
+              expenses.push({
+                ...exp,
+                id: exp.id,
+                price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0,
+                expense_type: key,
+                created_at: exp.created_at,
+                reason: exp.reason || ''
+              });
+            });
           }
         });
         break;
       }
       case 'Spese Prodotti': {
-        Object.values(allExpensesData.productExpenses || {}).forEach(expenseArray => {
+        Object.entries(allExpensesData.productExpenses || {}).forEach(([key, expenseArray]) => {
           if (Array.isArray(expenseArray)) {
-            expenses = expenses.concat(expenseArray.map(exp => ({
-              ...exp,
-              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0
-            })));
+            expenseArray.forEach((exp) => {
+              expenses.push({
+                ...exp,
+                id: exp.id,
+                price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price) || 0,
+                product_type: key,
+                created_at: exp.created_at,
+                reason: exp.reason || ''
+              });
+            });
           }
         });
         break;
       }
       case 'Utenze': {
-        // Per le utenze, creiamo oggetti fittizi perché non hanno date individuali
         const utils = allExpensesData.utilities || {};
-        const utilityLabels = {
-          pigione: 'Pigione',
-          acqua: 'Acqua',
-          luce: 'Luce',
-          spazzatura: 'Spazzatura',
-          gas: 'Gas'
-        };
-        Object.keys(utilityLabels).forEach(key => {
-          const value = parseFloat(utils[key]) || 0;
-          if (value > 0) {
-            expenses.push({
-              id: `utility-${key}`,
-              price: value,
-              expense_type: utilityLabels[key],
-              created_at: null,
-              reason: ''
+        const utilsExp = utils.expenses || {};
+        Object.keys(utilsExp).forEach((key) => {
+          const arr = utilsExp[key];
+          if (Array.isArray(arr)) {
+            arr.forEach((e) => {
+              expenses.push({
+                ...e,
+                id: e.id,
+                price: typeof e.price === 'number' ? e.price : parseFloat(e.price) || 0,
+                utility_type: key,
+                created_at: e.created_at,
+                reason: e.reason || ''
+              });
             });
           }
         });
@@ -313,7 +328,11 @@ const TotalExpenses = () => {
           </div>
         </div>
 
-        <div className="expense-card">
+        <div
+          className="expense-card"
+          onClick={() => setEmployeesModalOpen(true)}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="expense-label">40% Dipendenti</div>
           <div className="expense-amount">{employeesEarnings.toFixed(2)} €</div>
           <div className="expense-description">
@@ -349,6 +368,14 @@ const TotalExpenses = () => {
         category={detailModal.category}
         expenses={detailModal.expenses}
         monthKey={getMonthKey(currentMonth)}
+      />
+
+      <EmployeesEarningsModal
+        isOpen={employeesModalOpen}
+        onClose={() => setEmployeesModalOpen(false)}
+        employees={employees}
+        monthAppointments={monthAppointments}
+        monthLabel={`${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`}
       />
     </div>
   );

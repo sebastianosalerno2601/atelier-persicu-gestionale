@@ -184,6 +184,46 @@ const initDatabase = async () => {
         EXECUTE FUNCTION update_updated_at_column();
     `);
     
+    // Tabella spese utenze (multiple voci per tipo: pigione, acqua, luce, ecc.)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS utility_expenses (
+        id SERIAL PRIMARY KEY,
+        month_key VARCHAR(7) NOT NULL,
+        utility_type VARCHAR(50) NOT NULL,
+        price DECIMAL(10, 2) NOT NULL,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_utility_expenses_month_type ON utility_expenses (month_key, utility_type)`);
+    
+    // Sotto-categorie custom per mese (solo admin): utenze, bar, prodotti, manutenzioni
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_categories (
+        id SERIAL PRIMARY KEY,
+        section VARCHAR(50) NOT NULL,
+        month_key VARCHAR(7) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (section, month_key, slug)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_custom_categories_section_month ON custom_categories (section, month_key)`);
+    
+    // Spese manutenzioni custom (tipo = slug da custom_categories)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_custom_expenses (
+        id SERIAL PRIMARY KEY,
+        month_key VARCHAR(7) NOT NULL,
+        slug VARCHAR(100) NOT NULL,
+        price DECIMAL(10, 2) NOT NULL,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_maintenance_custom_month_slug ON maintenance_custom_expenses (month_key, slug)`);
+    
     // Tabella spese prodotti
     await client.query(`
       CREATE TABLE IF NOT EXISTS product_expenses (

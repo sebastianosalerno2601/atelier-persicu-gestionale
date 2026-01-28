@@ -1,38 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { getMaintenance, addMaintenanceExpense, deleteMaintenanceExpense, getMaintenanceNotes, saveMaintenanceNotes } from '../utils/api';
+import { getMaintenance, addMaintenanceExpense, deleteMaintenanceExpense, saveMaintenanceNotes, getCustomCategories, createCustomCategory, deleteCustomCategory } from '../utils/api';
 import ExpenseReasonModal from './ExpenseReasonModal';
+import CustomCategoryModal from './CustomCategoryModal';
 import './Maintenance.css';
 
+const SECTION = 'maintenance';
 const maintenanceTypes = {
   ordinaria: 'Manutenzioni ordinarie',
   straordinaria: 'Manutenzione straordinaria'
 };
 
 const Maintenance = () => {
+  const [auth, setAuth] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  // Array di spese per tipo: { id, price }
-  const [expenses, setExpenses] = useState({
-    ordinaria: [],
-    straordinaria: []
-  });
-
-  const [tempInputs, setTempInputs] = useState({
-    ordinaria: '',
-    straordinaria: ''
-  });
-
+  const [customCategories, setCustomCategories] = useState([]);
+  const [expenses, setExpenses] = useState({});
+  const [tempInputs, setTempInputs] = useState({});
   const [showDetails, setShowDetails] = useState({});
   const [showNotes, setShowNotes] = useState({});
-  const [notes, setNotes] = useState({
-    ordinaria: '',
-    straordinaria: ''
-  });
+  const [notes, setNotes] = useState({ ordinaria: '', straordinaria: '' });
   const [loading, setLoading] = useState(false);
   const [reasonModal, setReasonModal] = useState({ isOpen: false, type: null, price: 0 });
   const [selectedExpenseForReason, setSelectedExpenseForReason] = useState(null);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+
+  const buildTypeList = (customList) => {
+    const cust = customList ?? customCategories;
+    return [
+      ...Object.entries(maintenanceTypes).map(([key, label]) => ({ key, label })),
+      ...(Array.isArray(cust) ? cust : []).map((c) => ({ key: c.slug, label: c.name, customId: c.id }))
+    ];
+  };
+  const typeList = buildTypeList();
 
   useEffect(() => {
-    loadMaintenance();
+    setAuth(JSON.parse(localStorage.getItem('atelier-auth') || '{}'));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await loadCustomCategories();
+      if (cancelled) return;
+      await loadMaintenance(list);
+    })();
+    return () => { cancelled = true; };
   }, [currentMonth]);
 
   // Chiudi tooltip quando si clicca fuori
@@ -63,55 +75,51 @@ const Maintenance = () => {
     return `${day}/${month}/${year}`;
   };
 
-  const loadMaintenance = async () => {
+  const getLabel = (key) => maintenanceTypes[key] || customCategories.find((c) => c.slug === key)?.name || key;
+
+  const loadCustomCategories = async () => {
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      const list = await getCustomCategories(SECTION, monthKey);
+      const arr = Array.isArray(list) ? list : [];
+      setCustomCategories(arr);
+      return arr;
+    } catch (e) {
+      console.error('Errore caricamento custom categories:', e);
+      setCustomCategories([]);
+      return [];
+    }
+  };
+
+  const loadMaintenance = async (customListOverride) => {
     try {
       setLoading(true);
       const monthKey = getMonthKey(currentMonth);
+      const types = buildTypeList(customListOverride);
       const data = await getMaintenance(monthKey);
-      
-      // Il backend restituisce { expenses: { ordinaria: [...], straordinaria: [...] }, notes: {...} }
-      const converted = {
-        ordinaria: [],
-        straordinaria: []
-      };
-      
-      // Gestisce sia la nuova struttura (data.expenses) che la vecchia (data diretto) per retrocompatibilità
       const expensesData = data.expenses || data;
-      
-      Object.keys(maintenanceTypes).forEach(key => {
-        if (expensesData[key] && Array.isArray(expensesData[key])) {
-          converted[key] = expensesData[key].map(expense => ({
-            id: expense.id,
-            price: typeof expense.price === 'number' ? expense.price : parseFloat(expense.price),
-            created_at: expense.created_at,
-            reason: expense.reason || ''
-          }));
-        }
+      const converted = {};
+      const initInputs = {};
+      types.forEach(({ key }) => {
+        converted[key] = Array.isArray(expensesData[key])
+          ? expensesData[key].map((exp) => ({
+              id: exp.id,
+              price: typeof exp.price === 'number' ? exp.price : parseFloat(exp.price),
+              created_at: exp.created_at,
+              reason: exp.reason || ''
+            }))
+          : [];
+        initInputs[key] = tempInputs[key] ?? '';
       });
-      
       setExpenses(converted);
-      
-      // Carica le note
-      if (data && data.notes) {
-        setNotes({
-          ordinaria: data.notes.ordinaria || '',
-          straordinaria: data.notes.straordinaria || ''
-        });
-      } else {
-        try {
-          const notesData = await getMaintenanceNotes(monthKey);
-          setNotes(notesData || { ordinaria: '', straordinaria: '' });
-        } catch (error) {
-          console.error('Errore caricamento note:', error);
-          setNotes({ ordinaria: '', straordinaria: '' });
-        }
-      }
+      setTempInputs((prev) => ({ ...prev, ...initInputs }));
+      setNotes({
+        ordinaria: (data.notes && data.notes.ordinaria) || '',
+        straordinaria: (data.notes && data.notes.straordinaria) || ''
+      });
     } catch (error) {
       console.error('Errore caricamento manutenzioni:', error);
-      setExpenses({
-        ordinaria: [],
-        straordinaria: []
-      });
+      setExpenses({});
       setNotes({ ordinaria: '', straordinaria: '' });
     } finally {
       setLoading(false);
@@ -119,21 +127,14 @@ const Maintenance = () => {
   };
 
   const handleInputChange = (key, value) => {
-    setTempInputs({
-      ...tempInputs,
-      [key]: value
-    });
+    setTempInputs((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleInputBlur = async (key) => {
+  const handleInputBlur = (key) => {
     const value = parseFloat(tempInputs[key]);
     if (!isNaN(value) && value > 0) {
-      // Mostra il popup per inserire il motivo
       setReasonModal({ isOpen: true, type: key, price: value });
-      setTempInputs({
-        ...tempInputs,
-        [key]: ''
-      });
+      setTempInputs((prev) => ({ ...prev, [key]: '' }));
     }
   };
 
@@ -173,10 +174,35 @@ const Maintenance = () => {
   };
 
   const getTotalForType = (key) => {
-    return expenses[key].reduce((sum, expense) => {
+    return (expenses[key] || []).reduce((sum, expense) => {
       const price = typeof expense === 'number' ? expense : expense.price;
       return sum + price;
     }, 0);
+  };
+
+  const handleAddCustomCategory = async (name) => {
+    try {
+      const monthKey = getMonthKey(currentMonth);
+      await createCustomCategory(SECTION, monthKey, name);
+      const list = await loadCustomCategories();
+      await loadMaintenance(list);
+      setCustomModalOpen(false);
+    } catch (error) {
+      console.error('Errore creazione sotto-categoria:', error);
+      alert('Errore: ' + (error.message || 'Impossibile creare la sotto-categoria'));
+    }
+  };
+
+  const handleRemoveCustomCategory = async (customId, label) => {
+    if (!window.confirm(`Eliminare la sotto-categoria "${label}"? Verranno eliminate anche tutte le spese inserite.`)) return;
+    try {
+      await deleteCustomCategory(customId);
+      const list = await loadCustomCategories();
+      await loadMaintenance(list);
+    } catch (error) {
+      console.error('Errore eliminazione sotto-categoria:', error);
+      alert('Errore: ' + (error.message || 'Impossibile eliminare la sotto-categoria'));
+    }
   };
 
   const handlePreviousMonth = () => {
@@ -196,11 +222,7 @@ const Maintenance = () => {
     return nextMonth <= new Date();
   };
 
-  const calculateTotal = () => {
-    return Object.keys(maintenanceTypes).reduce((sum, key) => {
-      return sum + getTotalForType(key);
-    }, 0);
-  };
+  const calculateTotal = () => typeList.reduce((sum, { key }) => sum + getTotalForType(key), 0);
 
   const monthNames = [
     'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -208,26 +230,15 @@ const Maintenance = () => {
   ];
 
   const toggleShowDetails = (key) => {
-    setShowDetails({
-      ...showDetails,
-      [key]: !showDetails[key]
-    });
+    setShowDetails((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleShowNotes = (type) => {
-    setShowNotes({
-      ...showNotes,
-      [type]: !showNotes[type]
-    });
+    setShowNotes((prev) => ({ ...prev, [type]: !prev[type] }));
   };
 
   const handleNotesChange = async (type, value) => {
-    const newNotes = {
-      ...notes,
-      [type]: value
-    };
-    setNotes(newNotes);
-    
+    setNotes((prev) => ({ ...prev, [type]: value }));
     try {
       const monthKey = getMonthKey(currentMonth);
       await saveMaintenanceNotes(monthKey, type, value);
@@ -238,10 +249,23 @@ const Maintenance = () => {
     }
   };
 
+  const isAdmin = auth?.role === 'superadmin';
+
   return (
     <div className="maintenance-container fade-in">
       <div className="maintenance-header">
         <h2 className="section-title">Manutenzioni</h2>
+        {isAdmin && (
+          <button
+            type="button"
+            className="add-category-btn"
+            onClick={() => setCustomModalOpen(true)}
+            aria-label="Aggiungi sotto-categoria"
+            title="Aggiungi sotto-categoria (solo questo mese)"
+          >
+            +
+          </button>
+        )}
       </div>
 
       <div className="maintenance-content">
@@ -267,19 +291,34 @@ const Maintenance = () => {
         </div>
 
         <div className="maintenance-list">
-          {Object.keys(maintenanceTypes).map((type) => {
+          {typeList.map(({ key: type, label, customId }) => {
             const total = getTotalForType(type);
+            const list = expenses[type] || [];
+            const hasNotes = type === 'ordinaria' || type === 'straordinaria';
             return (
               <div key={type} className="maintenance-item">
                 <div className="maintenance-left">
-                  <label className="maintenance-label">{maintenanceTypes[type]}</label>
+                  <div className="maintenance-label-row">
+                    <label className="maintenance-label">{label}</label>
+                    {isAdmin && customId && (
+                      <button
+                        type="button"
+                        className="remove-category-btn"
+                        onClick={() => handleRemoveCustomCategory(customId, label)}
+                        title="Elimina sotto-categoria"
+                        aria-label="Elimina sotto-categoria"
+                      >
+                        −
+                      </button>
+                    )}
+                  </div>
                   {total > 0 && (
                     <div className="maintenance-total-row">
                       <div className="maintenance-total-display">
                         <span className="total-label-small">Totale:</span>
                         <span className="total-value">{total.toFixed(2)} €</span>
                       </div>
-                      {expenses[type].length > 0 && (
+                      {list.length > 0 && (
                         <button
                           type="button"
                           className="toggle-details-btn"
@@ -290,6 +329,21 @@ const Maintenance = () => {
                           <span>{showDetails[type] ? 'Nascondi riepilogo' : 'Mostra riepilogo'}</span>
                         </button>
                       )}
+                      {hasNotes && (
+                        <button
+                          type="button"
+                          className="toggle-details-btn"
+                          onClick={() => toggleShowNotes(type)}
+                          aria-label={showNotes[type] ? 'Nascondi note' : 'Mostra note'}
+                        >
+                          <span>{showNotes[type] ? '▼' : '▶'}</span>
+                          <span>{showNotes[type] ? 'Nascondi note' : 'Mostra note'}</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!total && hasNotes && (
+                    <div className="maintenance-total-row">
                       <button
                         type="button"
                         className="toggle-details-btn"
@@ -301,18 +355,18 @@ const Maintenance = () => {
                       </button>
                     </div>
                   )}
-                  {showDetails[type] && expenses[type].length > 0 && (
+                  {showDetails[type] && list.length > 0 && (
                     <div className="maintenance-prices">
-                      {expenses[type].map((expense) => {
+                      {list.map((expense) => {
                         const createdDate = expense.created_at ? formatDate(expense.created_at) : '';
                         const expenseReason = expense.reason || '';
                         return (
                           <div key={expense.id} className="price-chip" style={{ position: 'relative' }}>
                             <span className="price-chip-content">
-                              <span 
-                                className="price-amount" 
+                              <span
+                                className="price-amount"
                                 style={{ cursor: expenseReason ? 'pointer' : 'default' }}
-                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId: expense.id, reason: expenseReason, price: expense.price, label: maintenanceTypes[type] })}
+                                onClick={() => expenseReason && setSelectedExpenseForReason({ expenseId: expense.id, reason: expenseReason, price: expense.price, label })}
                                 title={expenseReason ? 'Clicca per vedere il motivo' : ''}
                               >
                                 {expense.price.toFixed(2)} €
@@ -331,7 +385,7 @@ const Maintenance = () => {
                               <div className="expense-reason-tooltip">
                                 <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>Motivo:</div>
                                 <div>{selectedExpenseForReason.reason}</div>
-                                <button 
+                                <button
                                   style={{ marginTop: '8px', padding: '4px 8px', background: '#fff', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -347,13 +401,13 @@ const Maintenance = () => {
                       })}
                     </div>
                   )}
-                  {showNotes[type] && (
+                  {hasNotes && showNotes[type] && (
                     <div className="maintenance-notes-container">
                       <textarea
                         className="maintenance-notes-input"
-                        value={notes[type]}
+                        value={notes[type] ?? ''}
                         onChange={(e) => handleNotesChange(type, e.target.value)}
-                        onBlur={() => handleNotesChange(type, notes[type])}
+                        onBlur={() => handleNotesChange(type, notes[type] ?? '')}
                         placeholder="Inserisci note..."
                         rows="4"
                       />
@@ -364,7 +418,7 @@ const Maintenance = () => {
                   <input
                     type="number"
                     className="maintenance-price-input"
-                    value={tempInputs[type]}
+                    value={tempInputs[type] ?? ''}
                     onChange={(e) => handleInputChange(type, e.target.value)}
                     onBlur={() => handleInputBlur(type)}
                     onKeyPress={(e) => handleInputKeyPress(type, e)}
@@ -392,7 +446,14 @@ const Maintenance = () => {
         onClose={() => setReasonModal({ isOpen: false, type: null, price: 0 })}
         onSave={handleSaveExpenseWithReason}
         price={reasonModal.price}
-        expenseLabel={reasonModal.type ? maintenanceTypes[reasonModal.type] : ''}
+        expenseLabel={reasonModal.type ? getLabel(reasonModal.type) : ''}
+      />
+
+      <CustomCategoryModal
+        isOpen={customModalOpen}
+        onClose={() => setCustomModalOpen(false)}
+        onSave={handleAddCustomCategory}
+        sectionLabel="Manutenzioni"
       />
     </div>
   );
