@@ -15,10 +15,27 @@ const isPastDate = (dateStr) => {
 const canModifyAppointmentsOn = (user, dateStr) =>
   user?.role === 'superadmin' || !isPastDate(dateStr);
 
-// Ottieni tutti gli appuntamenti
+// Ottieni appuntamenti (opz. filtro per data: riduce traffico DB / egress)
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM appointments ORDER BY date, start_time');
+    const { from, to } = req.query;
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    let result;
+    if (from && to && dateRe.test(String(from)) && dateRe.test(String(to))) {
+      let dFrom = String(from).split('T')[0];
+      let dTo = String(to).split('T')[0];
+      if (dFrom > dTo) {
+        const t = dFrom;
+        dFrom = dTo;
+        dTo = t;
+      }
+      result = await pool.query(
+        'SELECT * FROM appointments WHERE date >= ? AND date <= ? ORDER BY date, start_time',
+        [dFrom, dTo]
+      );
+    } else {
+      result = await pool.query('SELECT * FROM appointments ORDER BY date, start_time');
+    }
     // Il wrapper ritorna [rows], quindi prendiamo result[0] che è l'array di righe
     const appointments = Array.isArray(result) && result[0] ? result[0] : (result.rows || result || []);
     

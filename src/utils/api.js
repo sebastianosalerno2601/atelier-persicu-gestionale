@@ -74,8 +74,14 @@ export const logout = () => {
   localStorage.removeItem('atelier-auth');
 };
 
-// Appointments API
-export const getAppointments = () => apiCall('/appointments');
+// Appointments API — con from/to (YYYY-MM-DD) il backend filtra e riduce egress
+export const getAppointments = (from, to) => {
+  if (from && to) {
+    const q = `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    return apiCall(`/appointments${q}`);
+  }
+  return apiCall('/appointments');
+};
 export const createAppointment = (appointment) => apiCall('/appointments', {
   method: 'POST',
   body: JSON.stringify(appointment)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
 import { getPrice, generateWeeklyRecurrences, addDays } from '../utils/storage';
+import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD } from '../utils/appointmentDateWindow';
 import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
 import AppointmentModal from './AppointmentModal';
 import PastDayRestrictionModal from './PastDayRestrictionModal';
@@ -60,15 +61,9 @@ const Appointments = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [appointments, setAppointments] = useState([]);
-  // Funzione per ottenere la data locale in formato YYYY-MM-DD
-  const getLocalDateString = (date = new Date()) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+  const [selectedDate, setSelectedDate] = useState(() =>
+    clampDateToAppointmentWindow(formatLocalYMD(new Date()))
+  );
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
@@ -111,7 +106,8 @@ const Appointments = () => {
       if (showLoading) {
         setLoading(true);
       }
-      const data = await getAppointmentsAPI();
+      const { from, to } = getAppointmentsApiRange();
+      const data = await getAppointmentsAPI(from, to);
       const camelCaseData = Array.isArray(data) ? data.map(appointmentToCamelCase) : [];
       setAppointments(camelCaseData);
     } catch (error) {
@@ -680,6 +676,7 @@ const Appointments = () => {
   const firstWeekMessage = getFirstWeekMessage();
   const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployee);
   const unpaidAppointments = getUnpaidAppointments();
+  const { from: appointmentsDateMin, to: appointmentsDateMax } = getAppointmentsApiRange();
 
   return (
     <div className="appointments-container fade-in">
@@ -688,8 +685,11 @@ const Appointments = () => {
         <input
           type="date"
           value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          min={appointmentsDateMin}
+          max={appointmentsDateMax}
+          onChange={(e) => setSelectedDate(clampDateToAppointmentWindow(e.target.value))}
           className="date-picker"
+          title={`Date disponibili: da ${appointmentsDateMin} a ${appointmentsDateMax} (±4 mesi da oggi)`}
         />
       </div>
 
