@@ -7,6 +7,9 @@ const MONTHS_OFFSET = 4;
 /** Polling per sincronizzare la lista appuntamenti (ms). Valori alti = meno traffico verso il server/DB. */
 export const APPOINTMENTS_POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minuti
 
+/** Minimo tempo tra un GET e l'altro al ritorno sulla scheda (visibility). Riduce egress. */
+export const VISIBILITY_REFRESH_THROTTLE_MS = 5 * 60 * 1000; // 5 minuti
+
 const pad = (n) => String(n).padStart(2, '0');
 
 export const formatLocalYMD = (date) => {

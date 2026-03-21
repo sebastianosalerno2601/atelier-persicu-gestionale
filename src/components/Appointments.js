@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
 import { getPrice, generateWeeklyRecurrences, addDays } from '../utils/storage';
-import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS } from '../utils/appointmentDateWindow';
+import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
 import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
 import AppointmentModal from './AppointmentModal';
 import PastDayRestrictionModal from './PastDayRestrictionModal';
@@ -72,6 +72,7 @@ const Appointments = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [auth, setAuth] = useState(null);
+  const lastVisibilityRefreshRef = useRef(0);
 
   // Funzione per convertire snake_case a camelCase per i dipendenti
   const employeeToCamelCase = (obj) => {
@@ -141,12 +142,19 @@ const Appointments = () => {
     return () => clearInterval(interval);
   }, [loadAppointments]);
 
-  // Ricarica quando la finestra torna in focus (quando l'utente torna alla scheda)
+  // Ricarica al ritorno sulla scheda, al massimo ogni VISIBILITY_REFRESH_THROTTLE_MS (meno egress)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        loadAppointments(false);
+      if (document.hidden) return;
+      const now = Date.now();
+      if (
+        lastVisibilityRefreshRef.current > 0 &&
+        now - lastVisibilityRefreshRef.current < VISIBILITY_REFRESH_THROTTLE_MS
+      ) {
+        return;
       }
+      lastVisibilityRefreshRef.current = now;
+      loadAppointments(false);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
