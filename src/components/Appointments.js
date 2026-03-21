@@ -3,6 +3,11 @@ import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI,
 import { getPrice, generateWeeklyRecurrences, addDays } from '../utils/storage';
 import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
 import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
+import {
+  upsertAppointmentInList,
+  removeAppointmentFromList,
+  camelAppointmentFromCreateResponse
+} from '../utils/appointmentsMerge';
 import AppointmentModal from './AppointmentModal';
 import PastDayRestrictionModal from './PastDayRestrictionModal';
 import './Appointments.css';
@@ -263,7 +268,17 @@ const Appointments = () => {
             isRecurring: finalIsRecurring
           })
         };
-        await updateAppointment(selectedAppointment.id, appointmentToUpdate);
+        const updateRes = await updateAppointment(selectedAppointment.id, appointmentToUpdate);
+        const breaksRecurrenceSeries = wasRecurring && !finalIsRecurring;
+        if (breaksRecurrenceSeries) {
+          await loadAppointments(false);
+        } else if (updateRes.appointment) {
+          setAppointments((prev) =>
+            upsertAppointmentInList(prev, appointmentToCamelCase(updateRes.appointment))
+          );
+        } else {
+          await loadAppointments(false);
+        }
       } else {
         // Nuovo appuntamento
         if (appointmentData.isRecurring) {
@@ -286,8 +301,9 @@ const Appointments = () => {
           
           // Crea tutti gli appuntamenti in una singola transazione (molto più veloce!)
           await createAppointmentsBatch(appointmentsToCreate, recurrenceGroupId);
+          await loadAppointments(false);
         } else {
-          // Singolo appuntamento
+          // Singolo appuntamento: aggiorna stato locale senza GET
           const newAppointment = {
             ...appointmentToSnakeCase({
               ...appointmentData,
@@ -296,10 +312,15 @@ const Appointments = () => {
               isRecurring: false
             })
           };
-          await createAppointment(newAppointment);
+          const createRes = await createAppointment(newAppointment);
+          const camel = camelAppointmentFromCreateResponse(createRes);
+          if (camel) {
+            setAppointments((prev) => upsertAppointmentInList(prev, camel));
+          } else {
+            await loadAppointments(false);
+          }
         }
       }
-      await loadAppointments();
       setIsModalOpen(false);
       setSelectedAppointment(null);
       setSelectedTimeSlot(null);
@@ -320,7 +341,7 @@ const Appointments = () => {
     if (selectedAppointment && !canModifyAppointmentsOn(auth, selectedAppointment.date)) return;
     try {
       await deleteAppointment(appointmentId);
-      await loadAppointments();
+      setAppointments((prev) => removeAppointmentFromList(prev, appointmentId));
       setIsModalOpen(false);
       setSelectedAppointment(null);
     } catch (error) {

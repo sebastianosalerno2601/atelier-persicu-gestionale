@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, updateAppointment, deleteAppointment } from '../utils/api';
 import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
 import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
+import {
+  upsertAppointmentInList,
+  removeAppointmentFromList,
+  camelAppointmentFromCreateResponse
+} from '../utils/appointmentsMerge';
 import AppointmentModal from './AppointmentModal';
 import PastDayRestrictionModal from './PastDayRestrictionModal';
 import './AllCalendar.css';
@@ -25,7 +30,10 @@ const appointmentToCamelCase = (obj) => {
     endTime: obj.end_time,
     clientName: obj.client_name,
     serviceType: obj.service_type,
-    paymentMethod: obj.payment_method
+    paymentMethod: obj.payment_method,
+    productSold: obj.product_sold != null ? obj.product_sold : null,
+    recurrenceGroupId: obj.recurrence_group_id != null ? obj.recurrence_group_id : null,
+    isRecurring: !!obj.is_recurring
   };
 };
 
@@ -46,7 +54,10 @@ const appointmentToSnakeCase = (obj) => {
     endTime: obj.endTime,
     clientName: obj.clientName,
     serviceType: obj.serviceType,
-    paymentMethod: obj.paymentMethod
+    paymentMethod: obj.paymentMethod,
+    productSold: obj.productSold != null ? obj.productSold : null,
+    recurrenceGroupId: obj.recurrenceGroupId != null ? obj.recurrenceGroupId : null,
+    isRecurring: !!obj.isRecurring
   };
 };
 
@@ -76,7 +87,8 @@ const AllCalendar = () => {
   const touchStartPosRef = useRef(null);
   const draggedAppointmentRef = useRef(null);
   const isDraggingRef = useRef(false);
-  
+  const lastVisibilityRefreshRef = useRef(0);
+
   // Rileva dimensioni schermo per mobile
   useEffect(() => {
     const handleResize = () => {
@@ -229,9 +241,14 @@ const AllCalendar = () => {
           date: originalDate
         };
         const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
-        await updateAppointment(selectedForMove.id, appointmentToUpdate);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await loadAppointments();
+        const putResSlot = await updateAppointment(selectedForMove.id, appointmentToUpdate);
+        if (putResSlot.appointment) {
+          setAppointments((prev) =>
+            upsertAppointmentInList(prev, appointmentToCamelCase(putResSlot.appointment))
+          );
+        } else {
+          await loadAppointments(false);
+        }
         setSelectedForMove(null);
       } catch (error) {
         console.error('❌ Errore spostamento appuntamento:', error);
@@ -276,9 +293,14 @@ const AllCalendar = () => {
           date: originalDate
         };
         const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
-        await updateAppointment(selectedForMove.id, appointmentToUpdate);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await loadAppointments();
+        const putResB = await updateAppointment(selectedForMove.id, appointmentToUpdate);
+        if (putResB.appointment) {
+          setAppointments((prev) =>
+            upsertAppointmentInList(prev, appointmentToCamelCase(putResB.appointment))
+          );
+        } else {
+          await loadAppointments(false);
+        }
         setSelectedForMove(null);
       } catch (error) {
         console.error('❌ Errore spostamento appuntamento:', error);
@@ -451,9 +473,14 @@ const AllCalendar = () => {
               date: originalDate
             };
             const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
-            await updateAppointment(currentDraggedAppointment.id, appointmentToUpdate);
-            await new Promise(resolve => setTimeout(resolve, 100));
-            await loadAppointments();
+            const putResTouch = await updateAppointment(currentDraggedAppointment.id, appointmentToUpdate);
+            if (putResTouch.appointment) {
+              setAppointments((prev) =>
+                upsertAppointmentInList(prev, appointmentToCamelCase(putResTouch.appointment))
+              );
+            } else {
+              await loadAppointments(false);
+            }
           } catch (error) {
             console.error('❌ Errore aggiornamento appuntamento (drag & drop touch):', error);
             alert('Errore nello spostamento dell\'appuntamento: ' + error.message);
@@ -509,9 +536,14 @@ const AllCalendar = () => {
         date: originalDate
       };
       const appointmentToUpdate = appointmentToSnakeCase(updatedAppointment);
-      await updateAppointment(draggedAppointment.id, appointmentToUpdate);
-      await new Promise(resolve => setTimeout(resolve, 100));
-      await loadAppointments();
+      const putResDrop = await updateAppointment(draggedAppointment.id, appointmentToUpdate);
+      if (putResDrop.appointment) {
+        setAppointments((prev) =>
+          upsertAppointmentInList(prev, appointmentToCamelCase(putResDrop.appointment))
+        );
+      } else {
+        await loadAppointments(false);
+      }
       setDraggedAppointment(null);
       setDragOverCell(null);
     } catch (error) {
@@ -562,10 +594,29 @@ const AllCalendar = () => {
     setIsSaving(true);
     try {
       if (selectedAppointment) {
+        const wasRecurring = selectedAppointment.isRecurring || !!selectedAppointment.recurrenceGroupId;
+        const finalIsRecurring =
+          appointmentData.isRecurring !== undefined ? appointmentData.isRecurring : wasRecurring;
         const appointmentToUpdate = {
-          ...appointmentToSnakeCase({ ...selectedAppointment, ...appointmentData, employeeId: selectedAppointment.employeeId, date: selectedAppointment.date })
+          ...appointmentToSnakeCase({
+            ...selectedAppointment,
+            ...appointmentData,
+            employeeId: selectedAppointment.employeeId,
+            date: selectedAppointment.date,
+            isRecurring: finalIsRecurring
+          })
         };
-        await updateAppointment(selectedAppointment.id, appointmentToUpdate);
+        const updateRes = await updateAppointment(selectedAppointment.id, appointmentToUpdate);
+        const breaksRecurrenceSeries = wasRecurring && !finalIsRecurring;
+        if (breaksRecurrenceSeries) {
+          await loadAppointments(false);
+        } else if (updateRes.appointment) {
+          setAppointments((prev) =>
+            upsertAppointmentInList(prev, appointmentToCamelCase(updateRes.appointment))
+          );
+        } else {
+          await loadAppointments(false);
+        }
       } else {
         const newAppointment = {
           ...appointmentToSnakeCase({
@@ -574,10 +625,14 @@ const AllCalendar = () => {
             employeeId: selectedEmployeeForNew
           })
         };
-        await createAppointment(newAppointment);
+        const createRes = await createAppointment(newAppointment);
+        const camel = camelAppointmentFromCreateResponse(createRes);
+        if (camel) {
+          setAppointments((prev) => upsertAppointmentInList(prev, camel));
+        } else {
+          await loadAppointments(false);
+        }
       }
-
-      await loadAppointments();
       setIsModalOpen(false);
       setSelectedAppointment(null);
       setSelectedTimeSlot(null);
@@ -599,7 +654,7 @@ const AllCalendar = () => {
     if (selectedAppointment && !canModifyAppointmentsOn(auth, selectedAppointment.date)) return;
     try {
       await deleteAppointment(appointmentId);
-      await loadAppointments();
+      setAppointments((prev) => removeAppointmentFromList(prev, appointmentId));
       setIsModalOpen(false);
       setSelectedAppointment(null);
     } catch (error) {
