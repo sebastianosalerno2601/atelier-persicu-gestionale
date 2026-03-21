@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, updateAppointment, deleteAppointment } from '../utils/api';
 import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
-import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD } from '../utils/appointmentDateWindow';
+import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS } from '../utils/appointmentDateWindow';
 import AppointmentModal from './AppointmentModal';
 import PastDayRestrictionModal from './PastDayRestrictionModal';
 import './AllCalendar.css';
@@ -142,11 +142,11 @@ const AllCalendar = () => {
     loadAppointments();
   }, [loadAppointments]);
 
-  // Polling automatico ogni 30 secondi per sincronizzare con altri utenti (senza mostrare loading)
+  // Polling periodico (vedi APPOINTMENTS_POLL_INTERVAL_MS) per sincronizzare con altri utenti (senza loading)
   useEffect(() => {
     const interval = setInterval(() => {
       loadAppointments(false);
-    }, 30000); // 30 secondi
+    }, APPOINTMENTS_POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [loadAppointments]);
