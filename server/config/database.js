@@ -8,12 +8,13 @@ require('dotenv').config();
 let pool;
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Configurazione pool PostgreSQL
+// Configurazione pool PostgreSQL (Render ↔ Supabase: timeout rete non rari)
 const poolConfig = {
-  max: 12, // Supporta fino a 6+ utenti simultanei (2 connessioni per utente)
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000, // Aumentato a 5 secondi
-  allowExitOnIdle: false, // Mantieni il pool attivo
+  max: 10,
+  idleTimeoutMillis: 60000, // prima di scartare una connessione inattiva nel pool
+  // Tempo massimo per ottenere una connessione dal pool (acquire); 5s era troppo stretto con Supabase
+  connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS) || 25000,
+  allowExitOnIdle: false,
 };
 
 // In PRODUZIONE (Render): usa DATABASE_URL da Supabase
@@ -79,10 +80,10 @@ setTimeout(() => {
     });
 }, 1000); // Aspetta 1 secondo prima di testare la connessione
 
-// Keep-alive periodico per mantenere le connessioni attive (solo in produzione con Supabase)
+// Keep-alive: evita che il pool tenga socket già chiuse da Supabase (idle server-side)
 if (isProduction && process.env.DATABASE_URL) {
-  const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000; // Ogni 5 minuti
-  
+  const KEEP_ALIVE_INTERVAL = 2 * 60 * 1000; // ogni 2 minuti
+
   setInterval(async () => {
     try {
       const client = await pool.connect();
@@ -92,19 +93,18 @@ if (isProduction && process.env.DATABASE_URL) {
         client.release();
       }
     } catch (error) {
-      // Ignora errori di keep-alive, non loggare per evitare spam
-      // Le connessioni verranno ricreate quando necessario
+      // connessioni verranno ricreate al prossimo acquire
     }
   }, KEEP_ALIVE_INTERVAL);
-  
-  console.log('🔄 Keep-alive database attivo (ogni 5 minuti)');
+
+  console.log('🔄 Keep-alive database attivo (ogni 2 minuti)');
 }
 
 // Funzione helper per eseguire query con retry automatico
 async function executeQueryWithRetry(text, params, retryCount = 0) {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 500; // 500ms
-  
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY = 700;
+
   // Converti ? placeholders a $1, $2, $3 per PostgreSQL
   let pgText = text;
   if (params && params.length > 0) {
@@ -124,15 +124,18 @@ async function executeQueryWithRetry(text, params, retryCount = 0) {
     }
   } catch (error) {
     // Se l'errore è dovuto a una connessione chiusa o timeout, prova a riconnettersi
-    const isConnectionError = 
-      error.message?.includes('Connection terminated') ||
-      error.message?.includes('connection timeout') ||
-      error.message?.includes('terminated unexpectedly') ||
+    const msg = error.message || '';
+    const isConnectionError =
+      msg.includes('Connection terminated') ||
+      msg.includes('connection timeout') ||
+      msg.includes('Connection terminated due to') ||
+      msg.includes('terminated unexpectedly') ||
+      msg.includes('ECONNRESET') ||
       error.code === 'ECONNRESET' ||
       error.code === 'ETIMEDOUT' ||
       error.code === 'ENOTFOUND' ||
-      error.code === '57P01'; // admin_shutdown
-    
+      error.code === '57P01';
+
     if (isConnectionError && retryCount < MAX_RETRIES) {
       // Attendi prima di riprovare (backoff esponenziale)
       const delay = RETRY_DELAY * Math.pow(2, retryCount);

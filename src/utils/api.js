@@ -54,19 +54,65 @@ const apiCall = async (endpoint, options = {}) => {
   }
 };
 
-// Auth API
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Login con retry: cold start Render / glitch DB spesso rispondono 500/502/503 una tantum.
+ * Non ritenta su 401 (credenziali errate).
+ */
 export const login = async (username, password) => {
-  const data = await apiCall('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, password })
-  });
-  
-  if (data.token) {
-    localStorage.setItem('atelier-auth-token', data.token);
-    localStorage.setItem('atelier-auth', JSON.stringify(data.user));
+  const body = JSON.stringify({ username, password });
+  const maxAttempts = 3;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        if (data.token) {
+          localStorage.setItem('atelier-auth-token', data.token);
+          localStorage.setItem('atelier-auth', JSON.stringify(data.user));
+        }
+        return data;
+      }
+
+      if (response.status === 401) {
+        throw new Error(data.error || 'Credenziali non valide');
+      }
+
+      const retryable =
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504;
+      if (retryable && attempt < maxAttempts) {
+        console.warn(`[login] tentativo ${attempt}/${maxAttempts} fallito (${response.status}), riprovo...`);
+        await delay(800 * attempt);
+        continue;
+      }
+
+      throw new Error(data.error || `Errore ${response.status}`);
+    } catch (err) {
+      lastError = err;
+      const network =
+        err.name === 'TypeError' ||
+        (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')));
+      if (network && attempt < maxAttempts) {
+        console.warn(`[login] rete tentativo ${attempt}/${maxAttempts}, riprovo...`);
+        await delay(800 * attempt);
+        continue;
+      }
+      throw err;
+    }
   }
-  
-  return data;
+  throw lastError;
 };
 
 export const logout = () => {

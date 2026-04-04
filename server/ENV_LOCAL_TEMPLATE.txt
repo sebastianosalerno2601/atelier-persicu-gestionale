@@ -1,0 +1,2 @@
+# Opzionale in produzione: timeout (ms) per ottenere connessione DB dal pool (default 25000)
+# PG_CONNECTION_TIMEOUT_MS=25000
