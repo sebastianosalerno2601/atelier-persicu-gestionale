@@ -145,6 +145,20 @@ const initDatabase = async () => {
         ) THEN
           ALTER TABLE appointments ADD COLUMN is_recurring BOOLEAN NOT NULL DEFAULT FALSE;
         END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'appointments' AND column_name = 'scontistica_price'
+        ) THEN
+          ALTER TABLE appointments ADD COLUMN scontistica_price SMALLINT NULL;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'appointments' AND column_name = 'scontistica_payment_method'
+        ) THEN
+          ALTER TABLE appointments ADD COLUMN scontistica_payment_method VARCHAR(20) NULL;
+        END IF;
       END $$;
     `);
     

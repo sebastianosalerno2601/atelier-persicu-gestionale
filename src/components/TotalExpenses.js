@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getUtilities, getBarExpenses, getMaintenance, getAppointments, getProductExpenses, getEmployees } from '../utils/api';
-import { getPrice } from '../utils/storage';
+import { getAppointmentPrice, isPaidAppointment } from '../utils/storage';
 import ExpensesDetailModal from './ExpensesDetailModal';
 import EmployeesEarningsModal from './EmployeesEarningsModal';
 import './TotalExpenses.css';
@@ -108,16 +108,14 @@ const TotalExpenses = () => {
         const aptDate = apt.date || apt.appointment_date;
         const aptDateStr = aptDate ? aptDate.split('T')[0] : aptDate;
         const aptDateObj = new Date(aptDateStr);
-        const paymentMethod = apt.payment_method || apt.paymentMethod;
         return aptDateObj.getFullYear() === year &&
                aptDateObj.getMonth() === month &&
-               (paymentMethod === 'carta' || paymentMethod === 'contanti');
+               isPaidAppointment(apt);
       });
       setMonthAppointments(filtered);
 
       const totalRevenue = filtered.reduce((sum, apt) => {
-        const serviceType = apt.service_type || apt.serviceType;
-        return sum + (getPrice(serviceType) || 0);
+        return sum + getAppointmentPrice(apt);
       }, 0);
 
       const employeesTotal = totalRevenue * 0.4;

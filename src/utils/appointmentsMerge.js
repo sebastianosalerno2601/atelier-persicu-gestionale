@@ -45,6 +45,8 @@ export function camelAppointmentFromCreateResponse(data) {
     clientName: data.clientName,
     serviceType: data.serviceType,
     paymentMethod: data.paymentMethod || 'da-pagare',
+    scontisticaPrice: data.scontisticaPrice != null ? data.scontisticaPrice : null,
+    scontisticaPaymentMethod: data.scontisticaPaymentMethod != null ? data.scontisticaPaymentMethod : null,
     productSold: data.productSold != null ? data.productSold : null,
     recurrenceGroupId: data.recurrenceGroupId != null ? data.recurrenceGroupId : null,
     isRecurring: !!data.isRecurring

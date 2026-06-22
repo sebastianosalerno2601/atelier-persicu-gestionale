@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getAppointments as getAppointmentsAPI, getEmployees as getEmployeesAPI } from '../utils/api';
-import { getPrice } from '../utils/storage';
+import { getAppointmentPrice, isPaidAppointment } from '../utils/storage';
 import './MyProfile.css';
 
 const MyProfile = () => {
@@ -32,7 +32,9 @@ const MyProfile = () => {
       date: apt.date ? apt.date.split('T')[0] : apt.appointment_date,
       startTime: apt.startTime || apt.start_time,
       serviceType: apt.serviceType || apt.service_type,
-      paymentMethod: apt.paymentMethod || apt.payment_method
+      paymentMethod: apt.paymentMethod || apt.payment_method,
+      scontisticaPrice: apt.scontisticaPrice ?? apt.scontistica_price ?? null,
+      scontisticaPaymentMethod: apt.scontisticaPaymentMethod || apt.scontistica_payment_method || null
     };
   };
 
@@ -75,7 +77,7 @@ const MyProfile = () => {
       if (aptEmployeeId !== empEmployeeId) return false;
       
       // Solo appuntamenti pagati con carta o contanti
-      if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+      if (!isPaidAppointment(apt)) return false;
       
       // Normalizza la data per confronto
       const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
@@ -86,7 +88,7 @@ const MyProfile = () => {
 
     // Calcola il totale degli appuntamenti
     const totalRevenue = monthAppointments.reduce((sum, apt) => {
-      return sum + getPrice(apt.serviceType);
+      return sum + getAppointmentPrice(apt);
     }, 0);
 
     // Il dipendente riceve il 40% del totale
@@ -100,7 +102,7 @@ const MyProfile = () => {
       if (!dailyMap[dateStr]) {
         dailyMap[dateStr] = { date: dateStr, total: 0, earnings: 0 };
       }
-      const price = getPrice(apt.serviceType);
+      const price = getAppointmentPrice(apt);
       dailyMap[dateStr].total += price;
       dailyMap[dateStr].earnings += price * 0.4;
     });

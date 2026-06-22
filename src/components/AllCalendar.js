@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, updateAppointment, deleteAppointment } from '../utils/api';
+import { formatPaymentLabel } from '../utils/storage';
 import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
 import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
 import {
@@ -31,6 +32,8 @@ const appointmentToCamelCase = (obj) => {
     clientName: obj.client_name,
     serviceType: obj.service_type,
     paymentMethod: obj.payment_method,
+    scontisticaPrice: obj.scontistica_price != null ? obj.scontistica_price : null,
+    scontisticaPaymentMethod: obj.scontistica_payment_method || null,
     productSold: obj.product_sold != null ? obj.product_sold : null,
     recurrenceGroupId: obj.recurrence_group_id != null ? obj.recurrence_group_id : null,
     isRecurring: !!obj.is_recurring
@@ -55,6 +58,8 @@ const appointmentToSnakeCase = (obj) => {
     clientName: obj.clientName,
     serviceType: obj.serviceType,
     paymentMethod: obj.paymentMethod,
+    scontisticaPrice: obj.scontisticaPrice != null ? obj.scontisticaPrice : null,
+    scontisticaPaymentMethod: obj.scontisticaPaymentMethod || null,
     productSold: obj.productSold != null ? obj.productSold : null,
     recurrenceGroupId: obj.recurrenceGroupId != null ? obj.recurrenceGroupId : null,
     isRecurring: !!obj.isRecurring
@@ -798,7 +803,7 @@ const AllCalendar = () => {
                                 {appointment.startTime} - {appointment.endTime}
                               </div>
                               <div className={`calendar-appointment-payment ${appointment.paymentMethod}`}>
-                                {appointment.paymentMethod === 'da-pagare' ? 'DA PAGARE' : appointment.paymentMethod.charAt(0).toUpperCase() + appointment.paymentMethod.slice(1)}
+                                {formatPaymentLabel(appointment)}
                               </div>
                             </div>
                             );

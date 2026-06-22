@@ -10,6 +10,12 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
   const [startTime, setStartTime] = useState(appointment?.startTime || defaultTimeSlot || '09:00');
   const [endTime, setEndTime] = useState(appointment?.endTime || '');
   const [paymentMethod, setPaymentMethod] = useState(appointment?.paymentMethod || 'da-pagare');
+  const [scontisticaPrice, setScontisticaPrice] = useState(
+    appointment?.scontisticaPrice != null ? String(appointment.scontisticaPrice) : ''
+  );
+  const [scontisticaPaymentMethod, setScontisticaPaymentMethod] = useState(
+    appointment?.scontisticaPaymentMethod || ''
+  );
   const [isRecurring, setIsRecurring] = useState(appointment?.isRecurring || !!appointment?.recurrenceGroupId || false);
   const [hasProductSold, setHasProductSold] = useState(!!appointment?.productSold);
   const [productSold, setProductSold] = useState(appointment?.productSold || '');
@@ -40,6 +46,20 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
     setStartTime(newStartTime);
   };
 
+  const handlePaymentMethodChange = (e) => {
+    const value = e.target.value;
+    setPaymentMethod(value);
+    if (value !== 'scontistica') {
+      setScontisticaPrice('');
+      setScontisticaPaymentMethod('');
+    }
+  };
+
+  const handleScontisticaPriceChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setScontisticaPrice(val);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (isLoading) return; // Previeni submit multipli
@@ -49,12 +69,25 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
       return;
     }
 
+    if (paymentMethod === 'scontistica') {
+      if (!scontisticaPrice || scontisticaPrice === '0') {
+        alert('Inserisci il prezzo pagato (1-99)');
+        return;
+      }
+      if (!scontisticaPaymentMethod) {
+        alert('Seleziona carta o contanti per la scontistica');
+        return;
+      }
+    }
+
     onSave({
       clientName: clientName.trim(),
       serviceType,
       startTime,
       endTime,
       paymentMethod,
+      scontisticaPrice: paymentMethod === 'scontistica' ? parseInt(scontisticaPrice, 10) : null,
+      scontisticaPaymentMethod: paymentMethod === 'scontistica' ? scontisticaPaymentMethod : null,
       isRecurring: isEditing ? isRecurring : (isRecurring && !isEditing),
       productSold: hasProductSold ? productSold : null
     });
@@ -145,7 +178,7 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
             <select
               id="paymentMethod"
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+              onChange={handlePaymentMethodChange}
               required
             >
               <option value="da-pagare">DA PAGARE</option>
@@ -154,6 +187,38 @@ const AppointmentModal = ({ appointment, defaultTimeSlot, onSave, onDelete, onCl
               <option value="scontistica">Scontistica</option>
             </select>
           </div>
+
+          {paymentMethod === 'scontistica' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="scontisticaPrice">Prezzo pagato (€)</label>
+                <input
+                  id="scontisticaPrice"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={2}
+                  value={scontisticaPrice}
+                  onChange={handleScontisticaPriceChange}
+                  required
+                  placeholder="Es. 12"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="scontisticaPaymentMethod">Pagato con</label>
+                <select
+                  id="scontisticaPaymentMethod"
+                  value={scontisticaPaymentMethod}
+                  onChange={(e) => setScontisticaPaymentMethod(e.target.value)}
+                  required
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="carta">Carta</option>
+                  <option value="contanti">Contanti</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           <div className="form-group checkbox-group">
             <label className="checkbox-label">

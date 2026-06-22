@@ -55,6 +55,61 @@ export const getPrice = (serviceType) => {
   return prices[serviceType] || 0;
 };
 
+export const getPaymentMethod = (apt) => apt?.paymentMethod || apt?.payment_method;
+
+export const getScontisticaPaymentMethod = (apt) =>
+  apt?.scontisticaPaymentMethod || apt?.scontistica_payment_method;
+
+export const getEffectivePaymentMethod = (apt) => {
+  const pm = getPaymentMethod(apt);
+  if (pm === 'scontistica') {
+    return getScontisticaPaymentMethod(apt);
+  }
+  return pm;
+};
+
+export const isPaidAppointment = (apt) => {
+  const pm = getPaymentMethod(apt);
+  if (pm === 'carta' || pm === 'contanti') return true;
+  if (pm === 'scontistica') {
+    const spm = getScontisticaPaymentMethod(apt);
+    return spm === 'carta' || spm === 'contanti';
+  }
+  return false;
+};
+
+export const getAppointmentPrice = (apt) => {
+  const pm = getPaymentMethod(apt);
+  if (pm === 'scontistica') {
+    const price = apt?.scontisticaPrice ?? apt?.scontistica_price;
+    if (price != null && price !== '') {
+      return parseInt(price, 10) || 0;
+    }
+    return 0;
+  }
+  const serviceType = apt?.serviceType || apt?.service_type;
+  return getPrice(serviceType);
+};
+
+export const formatPaymentLabel = (apt) => {
+  const pm = getPaymentMethod(apt);
+  if (pm === 'da-pagare') return 'DA PAGARE';
+  if (pm === 'scontistica') {
+    const price = apt?.scontisticaPrice ?? apt?.scontistica_price;
+    const spm = getScontisticaPaymentMethod(apt);
+    const spmLabel = spm === 'carta' ? 'Carta' : spm === 'contanti' ? 'Contanti' : '';
+    if (price != null && price !== '' && spmLabel) {
+      return `Scontistica ${price}€ (${spmLabel})`;
+    }
+    if (price != null && price !== '') {
+      return `Scontistica ${price}€`;
+    }
+    return 'Scontistica';
+  }
+  if (!pm) return '';
+  return pm.charAt(0).toUpperCase() + pm.slice(1);
+};
+
 // Helper per aggiungere minuti a un orario
 export const addMinutes = (timeString, minutes) => {
   const [hours, mins] = timeString.split(':').map(Number);

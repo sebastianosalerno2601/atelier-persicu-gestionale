@@ -69,7 +69,7 @@ router.get('/', authMiddleware, async (req, res) => {
 // Crea nuovo appuntamento
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold, recurrenceGroupId, isRecurring } = req.body;
+    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold, recurrenceGroupId, isRecurring, scontisticaPrice, scontisticaPaymentMethod } = req.body;
     
     let normalizedDate = date;
     if (normalizedDate && typeof normalizedDate === 'string') {
@@ -89,8 +89,8 @@ router.post('/', authMiddleware, async (req, res) => {
     }
     
     const [result] = await pool.query(
-      'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold, recurrence_group_id, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
-      [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod || 'da-pagare', productSold || null, recurrenceGroupId || null, isRecurring || false]
+      'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold, recurrence_group_id, is_recurring, scontistica_price, scontistica_payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod || 'da-pagare', productSold || null, recurrenceGroupId || null, isRecurring || false, paymentMethod === 'scontistica' ? (scontisticaPrice ?? null) : null, paymentMethod === 'scontistica' ? (scontisticaPaymentMethod || null) : null]
     );
     
     const newId = result[0]?.id;
@@ -183,11 +183,13 @@ router.post('/batch', authMiddleware, async (req, res) => {
         apt.paymentMethod || 'da-pagare',
         apt.productSold || null,
         recurrenceGroupId,
-        true
+        true,
+        apt.paymentMethod === 'scontistica' ? (apt.scontisticaPrice ?? null) : null,
+        apt.paymentMethod === 'scontistica' ? (apt.scontisticaPaymentMethod || null) : null
       ];
       
       const { text: pgText, params } = convertQuery(
-        'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold, recurrence_group_id, is_recurring) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+        'INSERT INTO appointments (employee_id, date, start_time, end_time, client_name, service_type, payment_method, product_sold, recurrence_group_id, is_recurring, scontistica_price, scontistica_payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
         queryParams
       );
       
@@ -218,7 +220,7 @@ router.post('/batch', authMiddleware, async (req, res) => {
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold, isRecurring } = req.body;
+    const { employeeId, date, startTime, endTime, clientName, serviceType, paymentMethod, productSold, isRecurring, scontisticaPrice, scontisticaPaymentMethod } = req.body;
 
     const [current] = await pool.query('SELECT date, recurrence_group_id, is_recurring FROM appointments WHERE id = ?', [id]);
     if (!current || current.length === 0) {
@@ -255,14 +257,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
       );
       // Rimuovi il flag is_recurring e recurrence_group_id dall'appuntamento corrente
       await pool.query(
-        'UPDATE appointments SET employee_id = ?, date = ?, start_time = ?, end_time = ?, client_name = ?, service_type = ?, payment_method = ?, product_sold = ?, is_recurring = FALSE, recurrence_group_id = NULL WHERE id = ?',
-        [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, productSold || null, id]
+        'UPDATE appointments SET employee_id = ?, date = ?, start_time = ?, end_time = ?, client_name = ?, service_type = ?, payment_method = ?, product_sold = ?, is_recurring = FALSE, recurrence_group_id = NULL, scontistica_price = ?, scontistica_payment_method = ? WHERE id = ?',
+        [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, productSold || null, paymentMethod === 'scontistica' ? (scontisticaPrice ?? null) : null, paymentMethod === 'scontistica' ? (scontisticaPaymentMethod || null) : null, id]
       );
     } else {
       // Aggiorna normalmente
       await pool.query(
-        'UPDATE appointments SET employee_id = ?, date = ?, start_time = ?, end_time = ?, client_name = ?, service_type = ?, payment_method = ?, product_sold = ? WHERE id = ?',
-        [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, productSold || null, id]
+        'UPDATE appointments SET employee_id = ?, date = ?, start_time = ?, end_time = ?, client_name = ?, service_type = ?, payment_method = ?, product_sold = ?, scontistica_price = ?, scontistica_payment_method = ? WHERE id = ?',
+        [employeeId, normalizedDate, startTime, endTime, clientName, serviceType, paymentMethod, productSold || null, paymentMethod === 'scontistica' ? (scontisticaPrice ?? null) : null, paymentMethod === 'scontistica' ? (scontisticaPaymentMethod || null) : null, id]
       );
     }
     

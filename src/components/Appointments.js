@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
-import { getPrice, generateWeeklyRecurrences, addDays } from '../utils/storage';
+import { getPrice, generateWeeklyRecurrences, addDays, getAppointmentPrice, isPaidAppointment, getEffectivePaymentMethod, formatPaymentLabel } from '../utils/storage';
 import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
-import { canModifyAppointmentsOn } from '../utils/appointmentPermissions';
+import { canModifyAppointmentsOn, isSuperAdmin, getAuthEmployeeId } from '../utils/appointmentPermissions';
 import {
   upsertAppointmentInList,
   removeAppointmentFromList,
@@ -32,6 +32,8 @@ const appointmentToCamelCase = (obj) => {
     clientName: obj.client_name,
     serviceType: obj.service_type,
     paymentMethod: obj.payment_method,
+    scontisticaPrice: obj.scontistica_price != null ? obj.scontistica_price : null,
+    scontisticaPaymentMethod: obj.scontistica_payment_method || null,
     productSold: obj.product_sold || null,
     recurrenceGroupId: obj.recurrence_group_id || null,
     isRecurring: obj.is_recurring || false
@@ -56,6 +58,8 @@ const appointmentToSnakeCase = (obj) => {
     clientName: obj.clientName,
     serviceType: obj.serviceType,
     paymentMethod: obj.paymentMethod,
+    scontisticaPrice: obj.scontisticaPrice != null ? obj.scontisticaPrice : null,
+    scontisticaPaymentMethod: obj.scontisticaPaymentMethod || null,
     productSold: obj.productSold || null,
     recurrenceGroupId: obj.recurrenceGroupId || null,
     isRecurring: obj.isRecurring || false
@@ -99,13 +103,10 @@ const Appointments = () => {
       const data = await getEmployeesAPI();
       const camelCaseData = Array.isArray(data) ? data.map(employeeToCamelCase) : [];
       setEmployees(camelCaseData);
-      if (camelCaseData.length > 0 && !selectedEmployee) {
-        setSelectedEmployee(camelCaseData[0].id);
-      }
     } catch (error) {
       console.error('Errore caricamento dipendenti:', error);
     }
-  }, [selectedEmployee]);
+  }, []);
 
   const loadAppointments = useCallback(async (showLoading = true) => {
     try {
@@ -167,10 +168,18 @@ const Appointments = () => {
   }, [loadAppointments]);
 
   useEffect(() => {
-    if (employees.length > 0 && !selectedEmployee) {
+    if (employees.length === 0) return;
+
+    const authEmployeeId = getAuthEmployeeId(auth);
+    if (!isSuperAdmin(auth) && authEmployeeId != null) {
+      setSelectedEmployee(authEmployeeId);
+      return;
+    }
+
+    if (!selectedEmployee) {
       setSelectedEmployee(employees[0].id);
     }
-  }, [employees, selectedEmployee]);
+  }, [employees, selectedEmployee, auth]);
 
   const timeSlots = [];
   for (let hour = 9; hour <= 21; hour++) {
@@ -354,11 +363,11 @@ const Appointments = () => {
     const dayAppointments = appointments.filter(apt => 
       apt.date === selectedDate && 
       apt.employeeId === employeeId &&
-      (apt.paymentMethod === 'carta' || apt.paymentMethod === 'contanti')
+      isPaidAppointment(apt)
     );
 
     return dayAppointments.reduce((total, apt) => {
-      return total + getPrice(apt.serviceType);
+      return total + getAppointmentPrice(apt);
     }, 0);
   };
 
@@ -366,11 +375,11 @@ const Appointments = () => {
     const dayAppointments = appointments.filter(apt => 
       apt.date === selectedDate && 
       apt.employeeId === employeeId &&
-      apt.paymentMethod === 'contanti'
+      getEffectivePaymentMethod(apt) === 'contanti'
     );
 
     return dayAppointments.reduce((total, apt) => {
-      return total + getPrice(apt.serviceType);
+      return total + getAppointmentPrice(apt);
     }, 0);
   };
 
@@ -378,11 +387,11 @@ const Appointments = () => {
     const dayAppointments = appointments.filter(apt => 
       apt.date === selectedDate && 
       apt.employeeId === employeeId &&
-      apt.paymentMethod === 'carta'
+      getEffectivePaymentMethod(apt) === 'carta'
     );
 
     return dayAppointments.reduce((total, apt) => {
-      return total + getPrice(apt.serviceType);
+      return total + getAppointmentPrice(apt);
     }, 0);
   };
 
@@ -411,11 +420,11 @@ const Appointments = () => {
     const dayAppointments = appointments.filter(apt => 
       apt.date === selectedDate && 
       apt.employeeId === employeeId &&
-      (apt.paymentMethod === 'carta' || apt.paymentMethod === 'contanti')
+      isPaidAppointment(apt)
     );
 
     return dayAppointments.reduce((total, apt) => {
-      return total + getPrice(apt.serviceType);
+      return total + getAppointmentPrice(apt);
     }, 0);
   }, [appointments, selectedDate]);
 
@@ -494,7 +503,7 @@ const Appointments = () => {
       const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
       
       if (aptEmployeeId !== empId) return false;
-      if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+      if (!isPaidAppointment(apt)) return false;
       
       // Normalizza la data dell'appuntamento
       const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
@@ -508,7 +517,7 @@ const Appointments = () => {
     });
 
     return weekAppointments.reduce((total, apt) => {
-      return total + getPrice(apt.serviceType);
+      return total + getAppointmentPrice(apt);
     }, 0);
   }, [appointments]);
 
@@ -563,8 +572,10 @@ const Appointments = () => {
     const selectedEmp = employees.find(emp => emp.id === selectedEmployee);
     if (!selectedEmp) return null;
     
-    // Se non è superadmin, mostra i messaggi solo se il dipendente selezionato corrisponde all'utente loggato
-    if (auth.role !== 'superadmin' && auth.employee_id && selectedEmployee !== auth.employee_id) {
+    // Se non è superadmin, mostra i messaggi solo per l'utente loggato
+    const authEmployeeId = getAuthEmployeeId(auth);
+    const selectedEmpId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee, 10) : selectedEmployee;
+    if (!isSuperAdmin(auth) && authEmployeeId != null && selectedEmpId !== authEmployeeId) {
       return null;
     }
     
@@ -703,7 +714,12 @@ const Appointments = () => {
   }, [auth, selectedEmployee, employees, isFirstWeekOfMonth]);
   
   const firstWeekMessage = getFirstWeekMessage();
-  const selectedEmployeeData = employees.find(emp => emp.id === selectedEmployee);
+  const canSwitchEmployee = isSuperAdmin(auth);
+  const selectedEmployeeData = employees.find(emp => {
+    const empId = typeof emp.id === 'string' ? parseInt(emp.id, 10) : emp.id;
+    const selId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee, 10) : selectedEmployee;
+    return empId === selId;
+  });
   const unpaidAppointments = getUnpaidAppointments();
   const { from: appointmentsDateMin, to: appointmentsDateMax } = getAppointmentsApiRange();
 
@@ -728,20 +744,31 @@ const Appointments = () => {
         </div>
       ) : (
         <>
-          <div className="employee-selector">
-            {employees.map(employee => (
-              <button
-                key={employee.id}
-                className={`employee-button ${selectedEmployee === employee.id ? 'active' : ''}`}
-                onClick={() => setSelectedEmployee(employee.id)}
-              >
-                <span className="employee-name">{employee.fullName}</span>
+          {canSwitchEmployee ? (
+            <div className="employee-selector">
+              {employees.map(employee => (
+                <button
+                  key={employee.id}
+                  className={`employee-button ${selectedEmployee === employee.id ? 'active' : ''}`}
+                  onClick={() => setSelectedEmployee(employee.id)}
+                >
+                  <span className="employee-name">{employee.fullName}</span>
+                  <span className="employee-earnings">
+                    {getDailyEarnings(employee.id).toFixed(2)} €
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : selectedEmployeeData && (
+            <div className="employee-selector employee-selector-single">
+              <div className="employee-button active">
+                <span className="employee-name">{selectedEmployeeData.fullName}</span>
                 <span className="employee-earnings">
-                  {getDailyEarnings(employee.id).toFixed(2)} €
+                  {getDailyEarnings(selectedEmployee).toFixed(2)} €
                 </span>
-              </button>
-            ))}
-          </div>
+              </div>
+            </div>
+          )}
 
           {selectedEmployeeData && (
             <>
@@ -867,7 +894,7 @@ const Appointments = () => {
                                 {appointment.startTime} - {appointment.endTime}
                               </div>
                               <div className={`appointment-payment ${appointment.paymentMethod}`}>
-                                {appointment.paymentMethod === 'da-pagare' ? 'DA PAGARE' : appointment.paymentMethod.charAt(0).toUpperCase() + appointment.paymentMethod.slice(1)}
+                                {formatPaymentLabel(appointment)}
                               </div>
                             </div>
                           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getAppointments as getAppointmentsAPI, getEmployees as getEmployeesAPI } from '../utils/api';
-import { getPrice } from '../utils/storage';
+import { getAppointmentPrice, isPaidAppointment } from '../utils/storage';
 import './EmployeesReport.css';
 
 const EmployeesReport = () => {
@@ -51,6 +51,8 @@ const EmployeesReport = () => {
       startTime: apt.startTime || apt.start_time,
       serviceType: apt.serviceType || apt.service_type,
       paymentMethod: apt.paymentMethod || apt.payment_method,
+      scontisticaPrice: apt.scontisticaPrice ?? apt.scontistica_price ?? null,
+      scontisticaPaymentMethod: apt.scontisticaPaymentMethod || apt.scontistica_payment_method || null,
       productSold: apt.productSold || apt.product_sold || null
     };
   };
@@ -114,7 +116,7 @@ const EmployeesReport = () => {
         if (aptEmployeeId !== selEmployeeId) return false;
         
         // Solo appuntamenti pagati con carta o contanti
-        if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+        if (!isPaidAppointment(apt)) return false;
         
         // Normalizza le date per confronto
         const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
@@ -136,7 +138,7 @@ const EmployeesReport = () => {
         if (aptEmployeeId !== selEmployeeId) return false;
         
         // Solo appuntamenti pagati con carta o contanti
-        if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+        if (!isPaidAppointment(apt)) return false;
         
         // Normalizza la data per confronto
         const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
@@ -148,7 +150,7 @@ const EmployeesReport = () => {
 
     // Calcola il totale degli appuntamenti
     const totalRevenue = filteredAppointments.reduce((sum, apt) => {
-      return sum + getPrice(apt.serviceType);
+      return sum + getAppointmentPrice(apt);
     }, 0);
 
     // Il dipendente riceve il 40% del totale
@@ -162,7 +164,7 @@ const EmployeesReport = () => {
       if (!dailyMap[dateStr]) {
         dailyMap[dateStr] = { date: dateStr, total: 0, earnings: 0 };
       }
-      const price = getPrice(apt.serviceType);
+      const price = getAppointmentPrice(apt);
       dailyMap[dateStr].total += price;
       dailyMap[dateStr].earnings += price * 0.4;
     });
@@ -231,7 +233,7 @@ const EmployeesReport = () => {
         const empId = typeof employeeId === 'string' ? parseInt(employeeId) : employeeId;
         
         if (aptEmployeeId !== empId) return false;
-        if (apt.paymentMethod !== 'carta' && apt.paymentMethod !== 'contanti') return false;
+        if (!isPaidAppointment(apt)) return false;
         
         const aptDateStr = apt.date ? apt.date.split('T')[0] : apt.date;
         const aptDate = new Date(aptDateStr);
@@ -240,7 +242,7 @@ const EmployeesReport = () => {
       });
 
       const totalRevenue = filteredAppointments.reduce((sum, apt) => {
-        return sum + getPrice(apt.serviceType);
+        return sum + getAppointmentPrice(apt);
       }, 0);
 
       return totalRevenue * 0.4; // 40% per il dipendente

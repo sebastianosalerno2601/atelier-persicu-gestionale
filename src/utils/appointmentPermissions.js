@@ -22,3 +22,12 @@ export const isPastDate = (dateStr) => {
 export const canModifyAppointmentsOn = (auth, dateStr) => {
   return auth?.role === 'superadmin' || !isPastDate(dateStr);
 };
+
+export const isSuperAdmin = (auth) => auth?.role === 'superadmin';
+
+export const getAuthEmployeeId = (auth) => {
+  const raw = auth?.employeeId ?? auth?.employee_id;
+  if (raw == null || raw === '') return null;
+  const n = typeof raw === 'string' ? parseInt(raw, 10) : raw;
+  return Number.isNaN(n) ? null : n;
+};

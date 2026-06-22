@@ -1,12 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { formatPaymentLabel } from '../utils/storage';
 import './EmployeesEarningsModal.css';
-
-const PAYMENT_LABELS = {
-  carta: 'Carta',
-  contanti: 'Contanti',
-  'da-pagare': 'Da pagare',
-  scontistica: 'Scontistica'
-};
 
 const formatDay = (dateStr) => {
   if (!dateStr) return '';
@@ -178,7 +172,7 @@ const EmployeesEarningsModal = ({ isOpen, onClose, employees = [], monthAppointm
               </div>
               {daysList.length === 0 ? (
                 <div className="employees-earnings-empty">
-                  Nessun appuntamento pagato (carta/contanti) per questo dipendente nel mese
+                  Nessun appuntamento pagato (carta/contanti/scontistica) per questo dipendente nel mese
                 </div>
               ) : (
                 <ul className="employees-earnings-list">
@@ -259,8 +253,7 @@ const EmployeesEarningsModal = ({ isOpen, onClose, employees = [], monthAppointm
                 <div className="employees-earnings-detail-row">
                   <strong>Pagamento</strong>
                   <span>
-                    {PAYMENT_LABELS[selectedAppointment.payment_method || selectedAppointment.paymentMethod] ||
-                      (selectedAppointment.payment_method || selectedAppointment.paymentMethod) || '–'}
+                    {formatPaymentLabel(selectedAppointment) || '–'}
                   </span>
                 </div>
                 <div className="employees-earnings-detail-row">
