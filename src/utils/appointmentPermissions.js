@@ -31,3 +31,17 @@ export const getAuthEmployeeId = (auth) => {
   const n = typeof raw === 'string' ? parseInt(raw, 10) : raw;
   return Number.isNaN(n) ? null : n;
 };
+
+export const normalizeEmployeeId = (id) => {
+  if (id == null || id === '') return null;
+  const n = typeof id === 'string' ? parseInt(id, 10) : id;
+  return Number.isNaN(n) ? null : n;
+};
+
+/** I dipendenti vedono i guadagni solo del proprio profilo, non dei colleghi. */
+export const canViewEmployeeEarnings = (auth, employeeId) => {
+  if (isSuperAdmin(auth)) return true;
+  const authId = getAuthEmployeeId(auth);
+  const targetId = normalizeEmployeeId(employeeId);
+  return authId != null && targetId != null && authId === targetId;
+};

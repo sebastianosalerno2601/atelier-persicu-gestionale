@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
 import { getPrice, generateWeeklyRecurrences, addDays, getAppointmentPrice, isPaidAppointment, getEffectivePaymentMethod, formatPaymentLabel } from '../utils/storage';
 import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
-import { canModifyAppointmentsOn, isSuperAdmin, getAuthEmployeeId } from '../utils/appointmentPermissions';
+import { canModifyAppointmentsOn, isSuperAdmin, getAuthEmployeeId, canViewEmployeeEarnings, normalizeEmployeeId } from '../utils/appointmentPermissions';
 import {
   upsertAppointmentInList,
   removeAppointmentFromList,
@@ -168,15 +168,12 @@ const Appointments = () => {
   }, [loadAppointments]);
 
   useEffect(() => {
-    if (employees.length === 0) return;
+    if (employees.length === 0 || selectedEmployee) return;
 
     const authEmployeeId = getAuthEmployeeId(auth);
     if (!isSuperAdmin(auth) && authEmployeeId != null) {
       setSelectedEmployee(authEmployeeId);
-      return;
-    }
-
-    if (!selectedEmployee) {
+    } else {
       setSelectedEmployee(employees[0].id);
     }
   }, [employees, selectedEmployee, auth]);
@@ -573,9 +570,7 @@ const Appointments = () => {
     if (!selectedEmp) return null;
     
     // Se non è superadmin, mostra i messaggi solo per l'utente loggato
-    const authEmployeeId = getAuthEmployeeId(auth);
-    const selectedEmpId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee, 10) : selectedEmployee;
-    if (!isSuperAdmin(auth) && authEmployeeId != null && selectedEmpId !== authEmployeeId) {
+    if (!canViewEmployeeEarnings(auth, selectedEmployee)) {
       return null;
     }
     
@@ -714,7 +709,7 @@ const Appointments = () => {
   }, [auth, selectedEmployee, employees, isFirstWeekOfMonth]);
   
   const firstWeekMessage = getFirstWeekMessage();
-  const canSwitchEmployee = isSuperAdmin(auth);
+  const showEarnings = canViewEmployeeEarnings(auth, selectedEmployee);
   const selectedEmployeeData = employees.find(emp => {
     const empId = typeof emp.id === 'string' ? parseInt(emp.id, 10) : emp.id;
     const selId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee, 10) : selectedEmployee;
@@ -744,34 +739,30 @@ const Appointments = () => {
         </div>
       ) : (
         <>
-          {canSwitchEmployee ? (
-            <div className="employee-selector">
-              {employees.map(employee => (
+          <div className="employee-selector">
+            {employees.map(employee => {
+              const isActive = normalizeEmployeeId(selectedEmployee) === normalizeEmployeeId(employee.id);
+              const showEmployeeEarnings = canViewEmployeeEarnings(auth, employee.id);
+              return (
                 <button
                   key={employee.id}
-                  className={`employee-button ${selectedEmployee === employee.id ? 'active' : ''}`}
+                  className={`employee-button ${isActive ? 'active' : ''}`}
                   onClick={() => setSelectedEmployee(employee.id)}
                 >
                   <span className="employee-name">{employee.fullName}</span>
-                  <span className="employee-earnings">
-                    {getDailyEarnings(employee.id).toFixed(2)} €
-                  </span>
+                  {showEmployeeEarnings && (
+                    <span className="employee-earnings">
+                      {getDailyEarnings(employee.id).toFixed(2)} €
+                    </span>
+                  )}
                 </button>
-              ))}
-            </div>
-          ) : selectedEmployeeData && (
-            <div className="employee-selector employee-selector-single">
-              <div className="employee-button active">
-                <span className="employee-name">{selectedEmployeeData.fullName}</span>
-                <span className="employee-earnings">
-                  {getDailyEarnings(selectedEmployee).toFixed(2)} €
-                </span>
-              </div>
-            </div>
-          )}
+              );
+            })}
+          </div>
 
           {selectedEmployeeData && (
             <>
+              {showEarnings && (
               <div className="earnings-display">
                 <div className="earnings-row">
                   <div className="earnings-item">
@@ -792,8 +783,9 @@ const Appointments = () => {
                   </div>
                 </div>
               </div>
+              )}
 
-              {firstWeekMessage && (
+              {showEarnings && firstWeekMessage && (
                 <div 
                   style={{
                     margin: '15px 0',
@@ -810,7 +802,7 @@ const Appointments = () => {
                 </div>
               )}
 
-              {monthlyQuote && (
+              {showEarnings && monthlyQuote && (
                 <div 
                   style={{
                     margin: '15px 0',
@@ -827,7 +819,7 @@ const Appointments = () => {
                 </div>
               )}
 
-              {motivationalMessage && motivationalMessage.type !== 'quote' && motivationalMessage.type !== 'first-week' && (
+              {showEarnings && motivationalMessage && motivationalMessage.type !== 'quote' && motivationalMessage.type !== 'first-week' && (
                 <div 
                   style={{
                     margin: '15px 0',
@@ -842,7 +834,7 @@ const Appointments = () => {
                 </div>
               )}
 
-              {unpaidAppointments.length > 0 && (
+              {showEarnings && unpaidAppointments.length > 0 && (
                 <button
                   className="unpaid-notification-button"
                   onClick={() => setIsUnpaidModalOpen(true)}
