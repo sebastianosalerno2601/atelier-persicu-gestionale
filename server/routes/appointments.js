@@ -15,6 +15,63 @@ const isPastDate = (dateStr) => {
 const canModifyAppointmentsOn = (user, dateStr) =>
   user?.role === 'superadmin' || !isPastDate(dateStr);
 
+// Rendicontazione clienti serviti (solo superadmin): settimana / mese / anno
+router.get('/client-stats', authMiddleware, async (req, res) => {
+  try {
+    if (req.user?.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Solo l\'admin può vedere la rendicontazione clienti.' });
+    }
+
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    let ref = String(req.query.date || '').split('T')[0];
+    if (!dateRe.test(ref)) {
+      ref = getTodayLocal();
+    }
+
+    const [y, m, d] = ref.split('-').map(Number);
+    const refDate = new Date(y, m - 1, d, 12, 0, 0, 0);
+    const day = refDate.getDay(); // 0=Dom
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const weekStart = new Date(y, m - 1, d + mondayOffset);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const toYmd = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const weekFrom = toYmd(weekStart);
+    const weekTo = toYmd(weekEnd);
+    const monthFrom = `${y}-${pad(m)}-01`;
+    const monthTo = toYmd(new Date(y, m, 0)); // ultimo giorno del mese
+    const yearFrom = `${y}-01-01`;
+    const yearTo = `${y}-12-31`;
+
+    const paidCondition = `(
+      payment_method IN ('carta', 'contanti')
+      OR (payment_method = 'scontistica' AND scontistica_payment_method IN ('carta', 'contanti'))
+    ) AND service_type <> 'Pausa'`;
+
+    const countInRange = async (from, to) => {
+      const [rows] = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM appointments WHERE date >= ? AND date <= ? AND ${paidCondition}`,
+        [from, to]
+      );
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      return row?.count != null ? Number(row.count) : 0;
+    };
+
+    const [week, month, year] = await Promise.all([
+      countInRange(weekFrom, weekTo),
+      countInRange(monthFrom, monthTo),
+      countInRange(yearFrom, yearTo)
+    ]);
+
+    res.json({ week, month, year, date: ref });
+  } catch (error) {
+    console.error('Errore client-stats appuntamenti:', error);
+    res.status(500).json({ error: 'Errore interno del server' });
+  }
+});
+
 // Ottieni appuntamenti (opz. filtro per data: riduce traffico DB / egress)
 router.get('/', authMiddleware, async (req, res) => {
   try {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
+import { getEmployees as getEmployeesAPI, getAppointments as getAppointmentsAPI, getClientStats, createAppointment, createAppointmentsBatch, updateAppointment, deleteAppointment } from '../utils/api';
 import { getPrice, generateWeeklyRecurrences, addDays, getAppointmentPrice, isPaidAppointment, getEffectivePaymentMethod, formatPaymentLabel } from '../utils/storage';
 import { getAppointmentsApiRange, clampDateToAppointmentWindow, formatLocalYMD, APPOINTMENTS_POLL_INTERVAL_MS, VISIBILITY_REFRESH_THROTTLE_MS } from '../utils/appointmentDateWindow';
 import { canModifyAppointmentsOn, isSuperAdmin, getAuthEmployeeId, canViewEmployeeEarnings, normalizeEmployeeId } from '../utils/appointmentPermissions';
@@ -81,6 +81,7 @@ const Appointments = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [auth, setAuth] = useState(null);
+  const [clientsServed, setClientsServed] = useState({ week: 0, month: 0, year: 0 });
   const lastVisibilityRefreshRef = useRef(0);
 
   // Funzione per convertire snake_case a camelCase per i dipendenti
@@ -718,6 +719,29 @@ const Appointments = () => {
   const unpaidAppointments = getUnpaidAppointments();
   const { from: appointmentsDateMin, to: appointmentsDateMax } = getAppointmentsApiRange();
 
+  useEffect(() => {
+    if (!isSuperAdmin(auth)) return;
+
+    let cancelled = false;
+    const loadClientStats = async () => {
+      try {
+        const stats = await getClientStats(selectedDate);
+        if (!cancelled && stats) {
+          setClientsServed({
+            week: Number(stats.week) || 0,
+            month: Number(stats.month) || 0,
+            year: Number(stats.year) || 0
+          });
+        }
+      } catch (error) {
+        console.error('Errore caricamento rendicontazione clienti:', error);
+      }
+    };
+
+    loadClientStats();
+    return () => { cancelled = true; };
+  }, [auth, selectedDate, appointments]);
+
   return (
     <div className="appointments-container fade-in">
       <div className="appointments-header">
@@ -732,6 +756,31 @@ const Appointments = () => {
           title={`Date disponibili: da ${appointmentsDateMin} a ${appointmentsDateMax} (±4 mesi da oggi)`}
         />
       </div>
+
+      {isSuperAdmin(auth) && (
+        <div className="clients-reporting">
+          <div className="clients-reporting-header">
+            <h3 className="clients-reporting-title">Clienti serviti</h3>
+            <span className="clients-reporting-hint">Solo carta, contanti e scontistica</span>
+          </div>
+          <div className="clients-reporting-row">
+            <div className="clients-reporting-item">
+              <span className="clients-reporting-label">Settimana</span>
+              <span className="clients-reporting-value">{clientsServed.week}</span>
+            </div>
+            <div className="clients-reporting-divider" />
+            <div className="clients-reporting-item">
+              <span className="clients-reporting-label">Mese</span>
+              <span className="clients-reporting-value">{clientsServed.month}</span>
+            </div>
+            <div className="clients-reporting-divider" />
+            <div className="clients-reporting-item">
+              <span className="clients-reporting-label">Anno</span>
+              <span className="clients-reporting-value">{clientsServed.year}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {employees.length === 0 ? (
         <div className="no-employees-message">

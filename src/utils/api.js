@@ -128,6 +128,10 @@ export const getAppointments = (from, to) => {
   }
   return apiCall('/appointments');
 };
+export const getClientStats = (date) => {
+  const q = date ? `?date=${encodeURIComponent(String(date).split('T')[0])}` : '';
+  return apiCall(`/appointments/client-stats${q}`);
+};
 export const createAppointment = (appointment) => apiCall('/appointments', {
   method: 'POST',
   body: JSON.stringify(appointment)
