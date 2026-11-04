@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getAppointments as getAppointmentsAPI, getEmployees as getEmployeesAPI } from '../utils/api';
 import { getAppointmentPrice, isPaidAppointment } from '../utils/storage';
 import './EmployeesReport.css';
@@ -20,6 +20,8 @@ const EmployeesReport = () => {
   const [showProductsBreakdown, setShowProductsBreakdown] = useState(false);
   const [auth, setAuth] = useState(null);
   const [earningsDifference, setEarningsDifference] = useState({}); // { employeeId: { current: number, previous: number, difference: number } }
+  const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
+  const employeeDropdownRef = useRef(null);
 
   // Prezzi prodotti
   const PRODUCT_PRICES = {
@@ -366,6 +368,33 @@ const EmployeesReport = () => {
     return empId === selId;
   });
 
+  useEffect(() => {
+    if (!isEmployeeDropdownOpen) return;
+    const handleOutsideClick = (event) => {
+      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(event.target)) {
+        setIsEmployeeDropdownOpen(false);
+      }
+    };
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setIsEmployeeDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isEmployeeDropdownOpen]);
+
+  const handleSelectEmployee = (employeeId) => {
+    const normalizedValue =
+      employeeId != null && !Number.isNaN(Number(employeeId))
+        ? parseInt(employeeId, 10)
+        : employeeId;
+    setSelectedEmployee(normalizedValue);
+    setIsEmployeeDropdownOpen(false);
+  };
+
   if (employees.length === 0) {
     return (
       <div className="report-container fade-in">
@@ -383,26 +412,44 @@ const EmployeesReport = () => {
       </div>
 
       <div className="employee-selector-section">
-        <label htmlFor="employee-select" className="selector-label">
+        <span className="selector-label" id="employee-select-label">
           Seleziona dipendente:
-        </label>
-        <select
-          id="employee-select"
-          className="employee-select"
-          value={selectedEmployee ? String(selectedEmployee) : ''}
-          onChange={(e) => {
-            const value = e.target.value;
-            // Converti a numero se possibile, altrimenti mantieni come stringa
-            const normalizedValue = value && !isNaN(value) ? parseInt(value) : value;
-            setSelectedEmployee(normalizedValue);
-          }}
-        >
-          {employees.map(employee => (
-            <option key={employee.id} value={employee.id}>
-              {employee.fullName || employee.name || 'N/A'}
-            </option>
-          ))}
-        </select>
+        </span>
+        <div className="employee-dropdown" ref={employeeDropdownRef}>
+          <button
+            type="button"
+            className={`employee-dropdown-trigger ${isEmployeeDropdownOpen ? 'open' : ''}`}
+            aria-haspopup="listbox"
+            aria-expanded={isEmployeeDropdownOpen}
+            aria-labelledby="employee-select-label"
+            onClick={() => setIsEmployeeDropdownOpen((open) => !open)}
+          >
+            <span className="employee-dropdown-value">
+              {selectedEmployeeData?.fullName || selectedEmployeeData?.name || 'Seleziona...'}
+            </span>
+            <span className="employee-dropdown-chevron" aria-hidden="true" />
+          </button>
+          {isEmployeeDropdownOpen && (
+            <ul className="employee-dropdown-menu" role="listbox">
+              {employees.map((employee) => {
+                const empId = typeof employee.id === 'string' ? parseInt(employee.id, 10) : employee.id;
+                const selId = typeof selectedEmployee === 'string' ? parseInt(selectedEmployee, 10) : selectedEmployee;
+                const isSelected = empId === selId;
+                return (
+                  <li key={employee.id} role="option" aria-selected={isSelected}>
+                    <button
+                      type="button"
+                      className={`employee-dropdown-option ${isSelected ? 'selected' : ''}`}
+                      onClick={() => handleSelectEmployee(employee.id)}
+                    >
+                      {employee.fullName || employee.name || 'N/A'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
 
       {selectedEmployeeData && (
